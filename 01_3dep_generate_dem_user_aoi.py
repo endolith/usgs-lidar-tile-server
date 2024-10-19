@@ -67,17 +67,14 @@ For ease-of-use, it is suggested to launch and execute these notebooks on <a hre
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/OpenTopography/OT_3DEP_Workflows/blob/main/notebooks/01_3DEP_Generate_DEM_User_AOI.ipynb)
 """
 
-import copy
 import json
 import math
 import os
-import sys
 
 import geopandas as gpd
 import ipyleaflet
 import ipywidgets as widgets
 import matplotlib.pyplot as plt
-import numpy as np
 import pdal
 import pyproj
 import requests
