@@ -70,33 +70,7 @@ For ease-of-use, it is suggested to launch and execute these notebooks on <a hre
 
 # This cell only excecutes if you're running on Colab. Installation process takes 2-3 minutes.
 import os, sys
-if 'google.colab' in sys.modules:
 
-  # Mount Google Drive. You will be prompted to grant file I/O access to Drive.
-  from google.colab import drive
-  drive.mount('/gdrive/') # Mount Google Drive!
-
-  # Clone OpenTopography 3DEP Workflow Git Repository
-  !git clone https://github.com/OpenTopography/OT_3DEP_Workflows
-
-  #  Install the core dependencies (other than PDAL/GDAL) from requirements.txt
-  !pip install -q -r OT_3DEP_Workflows/requirements.txt
-
-  # Install Conda (necessary to install PDAL/GDAL)
-  !pip install -q condacolab
-  import condacolab
-  condacolab.install()
-
-  # Runtime will restart automatically. Do not rerun above cells.
-
-# This cell only excecutes if you're running on Colab.
-import os, sys
-if 'google.colab' in sys.modules:
-    # Colab requires proj_lib environment variable to be set manually.
-    os.environ['PROJ_LIB'] = '/usr/local/share/proj/'
-
-    #Install PDAL and GDAL with Mamba.
-    !mamba install -q python-pdal gdal --no-update-deps
 
 """**If using Option 1 (Google Colab), proceed to Library Imports**
 
