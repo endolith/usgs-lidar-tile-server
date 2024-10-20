@@ -577,7 +577,7 @@ else:
     user_AOI = []
     dc.on_draw(handle_draw)
     m.add_control(dc)
-    display(m)
+    m.save('user_defined_aoi.html')
 
 """<a name="Find-3DEP-Polygon(s)-Intersecting-AOI"></a>
 ### Find 3DEP Polygon(s) Intersecting AOI
@@ -657,7 +657,7 @@ user_resolution = widgets.RadioButtons(
     disabled=False,
 )
 
-display(m)
+m.save('intersecting_3dep_polygons.html')
 print(
     f'Your AOI at full resolution will include approximately {int(math.ceil(num_pts_est/1e6)*1e6):,} points. Select desired point cloud resolution.')
 widgets.VBox(
