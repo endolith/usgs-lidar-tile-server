@@ -1020,17 +1020,19 @@ keywords=["OpenTopography","USGS", "CDI", "3DEP", "PDAL"]
 To cite this notebook:  Speed, C., Beckley, M., Crosby, C., & Nandigam, V. (2022). Generate and visualize DEMs (DTM and DSM) from USGS 3D Elevation Program (3DEP) lidar data for user-defined area of interest (Version v1.0). DOI: Accessed: MM/DD/YYYY
 """
 
-# Import necessary libraries
 
-# Handle NaN or masked values in DSM
-dsm_filled = np.nan_to_num(dsm, nan=np.nanmean(dsm))
+def process_dsm(dsm):
+    # Handle NaN or masked values in DSM
+    dsm_filled = np.nan_to_num(dsm, nan=np.nanmean(dsm))
+    # Apply a Gaussian filter to smooth the DSM
+    sigma = 5  # Adjust sigma to control the degree of smoothing
+    smoothed_dsm = gaussian_filter(dsm_filled, sigma=sigma)
+    # Subtract the smoothed DSM from the original DSM to apply a high-pass filter
+    high_pass_dsm = dsm_filled - smoothed_dsm
+    return high_pass_dsm
 
-# Apply a Gaussian filter to smooth the DSM
-sigma = 5  # Adjust sigma to control the degree of smoothing
-smoothed_dsm = gaussian_filter(dsm_filled, sigma=sigma)
 
-# Subtract the smoothed DSM from the original DSM to apply a high-pass filter
-high_pass_dsm = dsm_filled - smoothed_dsm
+high_pass_dsm = process_dsm(dsm)
 
 # # Plot the result of High-Pass Filter
 # plt.figure(figsize=(10, 10))
