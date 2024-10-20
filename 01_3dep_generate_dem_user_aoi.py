@@ -565,8 +565,17 @@ def create_bounding_box(sw_lat, sw_lon, ne_lat, ne_lon):
 
 
 # Define the bounding box coordinates
-sw_lat, sw_lon = 43.792771, -73.483920
-ne_lat, ne_lon = 43.793090, -73.483397
+
+# That bathroom at Roger's Rock campground hidden in the woods
+lat, lon = 43.7929183, -73.4835795
+# sw_lat, sw_lon = 43.792771, -73.483920
+# ne_lat, ne_lon = 43.793090, -73.483397
+# Low res for some reason.
+
+# Nearby house which has high res USGS 3DEP
+lat, lon = 43.7976215, -73.4860612
+sw_lat, sw_lon = lat - 0.0002, lon - 0.0002
+ne_lat, ne_lon = lat + 0.0002, lon + 0.0002
 
 AOI_GCS = create_bounding_box(sw_lat, sw_lon, ne_lat, ne_lon)
 AOI_EPSG3857 = gcs_to_proj(AOI_GCS)
