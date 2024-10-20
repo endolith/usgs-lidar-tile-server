@@ -645,6 +645,12 @@ def create_bounding_box(sw_lat, sw_lon, ne_lat, ne_lon):
 
 
 def tile_to_aoi(zoom, x, y):
+    """
+    Example usage:
+
+    zoom, x, y = 15, 9643, 12321  # Example tile coordinates
+    AOI_GCS, AOI_EPSG3857 = tile_to_aoi(zoom, x, y)
+    """
     # Convert tile coordinates to bounding box
     bounds = mercantile.bounds(x, y, zoom)
 
@@ -656,23 +662,13 @@ def tile_to_aoi(zoom, x, y):
 
     return aoi_polygon, aoi_3857
 
-# # Example usage:
-# zoom, x, y = 15, 9643, 12321  # Example tile coordinates
-# AOI_GCS, AOI_EPSG3857 = tile_to_aoi(zoom, x, y)
-
-# Now we can use AOI_EPSG3857 in our existing pipeline
-
 
 # Define the tile coordinates
 zoom, x, y = 20, 308688, 386634  # Helmus Crevice
 zoom, x, y = 20, 308688, 386631  # Cave Wall
 
-# Convert tile coordinates to AOI
+
 AOI_GCS, AOI_EPSG3857 = tile_to_aoi(zoom, x, y)
-
-user_AOI = [(AOI_GCS, AOI_EPSG3857)]
-
-print(f'AOI is valid and has boundaries of\n{AOI_EPSG3857.bounds}.')
 
 # Save the map for visualization (optional)
 m = ipyleaflet.Map(center=((AOI_GCS.bounds[1] + AOI_GCS.bounds[3]) / 2,
@@ -686,8 +682,8 @@ m.save('user_defined_aoi.html')
 Now that the user-specified AOI is defined, the following cell will determine the intersecting 3DEP dataset names and show the corresponding polygons on an interactive map.  `intersecting_polys` will be a list of the intersecting 3DEP dataset name(s), boundary(ies) in EPSG: 4326, boundary(ies) in EPSG: 3857, url(s), and the number of points in the entire 3DEP dataset(s). The dataset names will be used in the API request to the AWS EPT S3 bucket. A ratio of the total number of points and the area of the user-defined AOI will be used to estimate the total points within the AOI.
 """
 
-AOI_GCS = user_AOI[-1][0]
-AOI_EPSG3857 = user_AOI[-1][1]
+# AOI_GCS = user_AOI[-1][0]
+# AOI_EPSG3857 = user_AOI[-1][1]
 
 intersecting_polys = []
 
