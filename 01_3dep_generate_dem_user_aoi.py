@@ -490,11 +490,13 @@ In the following cell, we use an API request to get the boundaries from the repo
 
 print("Requesting, loading, and projecting 3DEP dataset polygons...")
 
-# request the boundaries from the Github repo and save locally.
-url = 'https://raw.githubusercontent.com/hobuinc/usgs-lidar/master/boundaries/resources.geojson'
-r = requests.get(url)
-with open('resources.geojson', 'w') as f:
-    f.write(r.content.decode("utf-8"))
+# Check if the file already exists
+if not os.path.exists('resources.geojson'):
+    # request the boundaries from the Github repo and save locally.
+    url = 'https://raw.githubusercontent.com/hobuinc/usgs-lidar/master/boundaries/resources.geojson'
+    r = requests.get(url)
+    with open('resources.geojson', 'w') as f:
+        f.write(r.content.decode("utf-8"))
 
 with open('resources.geojson', 'r') as f:
     geojsons_3DEP = json.load(f)
