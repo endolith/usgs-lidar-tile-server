@@ -685,6 +685,8 @@ AOI_GCS, AOI_EPSG3857 = tile_to_aoi(zoom, x, y)
 
 
 def get_3dep_data(zoom, x, y):
+    reclassify = False
+
     AOI_GCS, AOI_EPSG3857 = tile_to_aoi(zoom, x, y)
     user_AOI = [(AOI_GCS, AOI_EPSG3857)]
 
@@ -808,7 +810,7 @@ def get_3dep_data(zoom, x, y):
             f"Fetching point cloud data from AWS and saving as: {unique_filename}")
         pc_pipeline = build_pdal_pipeline(
             AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution,
-            filterNoise=True, reclassify=False, savePointCloud=True, outCRS=3857,
+            filterNoise=True, reclassify=reclassify, savePointCloud=True, outCRS=3857,
             pc_outName=unique_filename[:-4], pc_outType='laz')
 
     """The PDAL pipeline is now constructed. Running the the PDAL Python bindings function ```pdal.Pipeline()``` creates the pdal.Pipeline object from a json-ized version of the pointcloud pipeline we created."""
@@ -824,10 +826,11 @@ def get_3dep_data(zoom, x, y):
 
     # Commented out IPython magic to ensure Python compatibility.
     # %%time
-    # use this if reclassify == False
     if not os.path.exists(unique_filename):
-        pc_pipeline.execute_streaming(chunk_size=1000000)
-    # pc_pipeline.execute() # use this if reclassify == True
+        if reclassify:
+            pc_pipeline.execute()
+        else:
+            pc_pipeline.execute_streaming(chunk_size=1000000)
 
     """If the user only desires point cloud data, they may stop here. Following is an overview on how a DSM and DTM may be created.
 
@@ -873,7 +876,7 @@ def get_3dep_data(zoom, x, y):
     dsm_resolution = 0.65
     dsm_pipeline = make_DEM_pipeline(
         AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution,
-        dsm_resolution, filterNoise=True, reclassify=False, savePointCloud=False,
+        dsm_resolution, filterNoise=True, reclassify=reclassify, savePointCloud=False,
         outCRS=3857, pc_outName=get_unique_filename(zoom, x, y), pc_outType='laz',
         demType='dsm', gridMethod='min', dem_outName=f'dsms/dsm_{zoom}_{x}_{y}', dem_outExt='tif',
         driver="GTiff")
@@ -891,9 +894,10 @@ def get_3dep_data(zoom, x, y):
 
     # Commented out IPython magic to ensure Python compatibility.
     # %%time
-    # use this if reclassify == False
-    dsm_pipeline.execute_streaming(chunk_size=1000000)
-    # dsm_pipeline.execute() # use this if reclassify == True
+    if reclassify:
+        dsm_pipeline.execute()
+    else:
+        dsm_pipeline.execute_streaming(chunk_size=1000000)
 
     """<a name="Visualize-DEMs-(DSM/DTM)"></a>
     ## Visualize the DEM (DSM/DTM)
