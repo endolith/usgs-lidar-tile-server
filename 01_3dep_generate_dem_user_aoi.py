@@ -76,7 +76,6 @@ from concurrent.futures import ThreadPoolExecutor
 import geopandas as gpd
 import ipyleaflet
 import ipywidgets as widgets
-import matplotlib.pyplot as plt
 import mercantile
 import numpy as np
 import pdal
@@ -955,7 +954,6 @@ def get_3dep_data(zoom, x, y):
     return dsm
 
 
-# dsm = get_3dep_data(zoom, x, y)
 
 """Now we plot the DTM. By default, we use the 'viridis' colorbar to plot the bare earth elevation. Other colormaps can be used, and more information about available colormaps can be found here: https://matplotlib.org/stable/tutorials/colors/colormaps.html ).
 
@@ -1035,17 +1033,6 @@ def process_dsm(dsm):
     # Subtract the smoothed DSM from the original DSM to apply a high-pass filter
     high_pass_dsm = dsm_filled - smoothed_dsm
     return high_pass_dsm
-
-
-# high_pass_dsm = process_dsm(dsm)
-
-# # Plot the result of High-Pass Filter
-# plt.figure(figsize=(10, 10))
-# plt.imshow(high_pass_dsm, cmap='gray')
-# plt.title("High-Pass Filtered DSM")
-# plt.colorbar()
-# plt.axis('equal')
-# plt.show()
 
 
 def save_tile_png(high_pass_dsm, zoom, x, y, tile_size=512):
