@@ -872,7 +872,7 @@ def get_3dep_data(zoom, x, y):
         AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution,
         dsm_resolution, filterNoise=True, reclassify=False, savePointCloud=False,
         outCRS=3857, pc_outName='pointcloud_test', pc_outType='laz',
-        demType='dsm', gridMethod='min', dem_outName='test_dsm', dem_outExt='tif',
+        demType='dsm', gridMethod='min', dem_outName=f'dsm_{zoom}_{x}_{y}', dem_outExt='tif',
         driver="GTiff")
 
     """The PDAL pipeline is now constructed for making the DSM. Running the the PDAL Python bindings function ```pdal.Pipeline()``` creates the pdal.Pipeline object from a json-ized version of the pointcloud pipeline we created."""
@@ -941,7 +941,7 @@ def get_3dep_data(zoom, x, y):
 
     """Now we must define the file name we would like to plot. This could be a file path (e.g., `/path/to/my/dtm/dtm.tif`). Then we open the dtm as an `xarray` object."""
 
-    dsm_name = 'test_dsm.tif'  # /path/to/your/dtm/dtm.tif
+    dsm_name = f'dsm_{zoom}_{x}_{y}.tif'
     dsm = rio.open_rasterio(dsm_name, masked=True).squeeze()
 
     """DEMs can be very large and require significant RAM to plot. Here, we apply a downsampling technique for more efficient visualization."""
