@@ -652,6 +652,8 @@ print('Using full resolution with approximately '
       f'{int(math.ceil(num_pts_est/1e6)*1e6):,} points.')
 
 # Define user_resolution to maintain compatibility with the rest of the script
+
+
 class UserResolution:
     def __init__(self, value):
         self.value = value
@@ -706,8 +708,9 @@ Executing the pipeline in streaming mode will speed up the process and cuts down
 
 # Commented out IPython magic to ensure Python compatibility.
 # %%time
-# pc_pipeline.execute_streaming(chunk_size=1000000) # use this if reclassify == False
-# #pc_pipeline.execute() # use this if reclassify == True
+# use this if reclassify == False
+pc_pipeline.execute_streaming(chunk_size=1000000)
+# pc_pipeline.execute() # use this if reclassify == True
 
 """If the user only desires point cloud data, they may stop here. Following is an overview on how a DSM and DTM may be created.
 
@@ -769,8 +772,9 @@ Executing the pipeline in streaming mode will speed up the process and cuts down
 
 # Commented out IPython magic to ensure Python compatibility.
 # %%time
-# dsm_pipeline.execute_streaming(chunk_size=1000000) # use this if reclassify == False
-# #dsm_pipeline.execute() # use this if reclassify == True
+# use this if reclassify == False
+dsm_pipeline.execute_streaming(chunk_size=1000000)
+# dsm_pipeline.execute() # use this if reclassify == True
 
 """Below, the same process is outlined for the making of at DTM.
 
@@ -804,8 +808,9 @@ Executing the pipeline in streaming mode will speed up the process and cuts down
 
 # Commented out IPython magic to ensure Python compatibility.
 # %%time
-# dtm_pipeline.execute_streaming(chunk_size=1000000) # use this if reclassify == False
-# #dtm_pipeline.execute() # use this if reclassify == True
+# use this if reclassify == False
+dtm_pipeline.execute_streaming(chunk_size=1000000)
+# dtm_pipeline.execute() # use this if reclassify == True
 
 """<a name="Visualize-DEMs-(DSM/DTM)"></a>
 ## Visualize the DEM (DSM/DTM)
