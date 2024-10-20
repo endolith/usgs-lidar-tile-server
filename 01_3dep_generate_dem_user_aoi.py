@@ -76,6 +76,7 @@ import geopandas as gpd
 import ipyleaflet
 import ipywidgets as widgets
 import matplotlib.pyplot as plt
+import mercantile
 import numpy as np
 import pdal
 import pyproj
@@ -84,7 +85,7 @@ import rioxarray as rio
 from osgeo import gdal
 from rasterio.enums import Resampling
 from scipy.ndimage import gaussian_filter, sobel
-from shapely.geometry import Point, Polygon, shape
+from shapely.geometry import Point, Polygon, box, shape
 from shapely.ops import transform
 
 """**If using Option 1 (Google Colab), proceed to Library Imports**
@@ -588,65 +589,91 @@ def create_bounding_box(sw_lat, sw_lon, ne_lat, ne_lon):
 
 # Define the bounding box coordinates
 
-# That bathroom at Roger's Rock campground hidden in the woods
-lat, lon = 43.7929183, -73.4835795
+# # That bathroom at Roger's Rock campground hidden in the woods
+# lat, lon = 43.7929183, -73.4835795
 
-# Nearby house which has high res USGS 3DEP
-# lat, lon = 43.7976215, -73.4860612
+# # Nearby house which has high res USGS 3DEP
+# # lat, lon = 43.7976215, -73.4860612
 
-# Juniper Island to see if it excludes water
-# lat, lon = 43.7937800, -73.4702410
+# # Juniper Island to see if it excludes water
+# # lat, lon = 43.7937800, -73.4702410
 
-# Power House ruins
-# lat, lon = 41.7391973, -74.2296844
+# # Power House ruins
+# # lat, lon = 41.7391973, -74.2296844
 
-# Peterskill office
-# lat, lon = 41.7388041, -74.2178655
+# # Peterskill office
+# # lat, lon = 41.7388041, -74.2178655
 
-# Oops Block
-# lat, lon = 41.7396718, -74.2154604
+# # Oops Block
+# # lat, lon = 41.7396718, -74.2154604
 
-# Crumbling Under Pressure
-# lat, lon = 41.1472786, -74.1708238
+# # Crumbling Under Pressure
+# # lat, lon = 41.1472786, -74.1708238
 
-# Bathroom obscured by tree somewhat
-lat, lon = 43.7941338, -73.4843751
+# # Bathroom obscured by tree somewhat
+# lat, lon = 43.7941338, -73.4843751
 
-# Another somewhat
-lat, lon = 43.7935676, -73.4855400
+# # Another somewhat
+# lat, lon = 43.7935676, -73.4855400
 
-# Rumney bathroom
-lat, lon = 43.8017435, -71.8347284
+# # Rumney bathroom
+# lat, lon = 43.8017435, -71.8347284
 
-# Invisible Rumney bathroom
-lat, lon = 43.8022622, -71.8300657
+# # Invisible Rumney bathroom
+# lat, lon = 43.8022622, -71.8300657
 
-# Hanging Mountain portapotty
-lat, lon = 42.0702446, -73.0653542
+# # Hanging Mountain portapotty
+# lat, lon = 42.0702446, -73.0653542
 
-# Squirrel wall
-lat, lon = 42.0705253, -73.0672686
+# # Squirrel wall
+# lat, lon = 42.0705253, -73.0672686
 
-# Cave wall
-lat, lon = 42.6643144, -74.0201719
+# # Cave wall
+# lat, lon = 42.6643144, -74.0201719
 
-# Lower Misery two-tier cliff
-lat, lon = 42.6636367, -74.0202740
+# # Lower Misery two-tier cliff
+# lat, lon = 42.6636367, -74.0202740
 
-inc = 0.0003
-sw_lat, sw_lon = lat - inc, lon - inc
-ne_lat, ne_lon = lat + inc, lon + inc
+# inc = 0.0003
+# sw_lat, sw_lon = lat - inc, lon - inc
+# ne_lat, ne_lon = lat + inc, lon + inc
 
-AOI_GCS = create_bounding_box(sw_lat, sw_lon, ne_lat, ne_lon)
-AOI_EPSG3857 = gcs_to_proj(AOI_GCS)
+
+# Slippy map
+
+
+def tile_to_aoi(zoom, x, y):
+    # Convert tile coordinates to bounding box
+    bounds = mercantile.bounds(x, y, zoom)
+
+    # Create a Shapely polygon from the bounding box
+    aoi_polygon = box(bounds.west, bounds.south, bounds.east, bounds.north)
+
+    # Convert to EPSG:3857 (Web Mercator)
+    aoi_3857 = gcs_to_proj(aoi_polygon)
+
+    return aoi_polygon, aoi_3857
+
+# # Example usage:
+# zoom, x, y = 15, 9643, 12321  # Example tile coordinates
+# AOI_GCS, AOI_EPSG3857 = tile_to_aoi(zoom, x, y)
+
+# Now we can use AOI_EPSG3857 in our existing pipeline
+
+
+# Define the tile coordinates
+zoom, x, y = 20, 308688, 386634  # Thacher
+
+# Convert tile coordinates to AOI
+AOI_GCS, AOI_EPSG3857 = tile_to_aoi(zoom, x, y)
 
 user_AOI = [(AOI_GCS, AOI_EPSG3857)]
 
 print(f'AOI is valid and has boundaries of\n{AOI_EPSG3857.bounds}.')
 
 # Save the map for visualization (optional)
-m = ipyleaflet.Map(center=((sw_lat + ne_lat) / 2,
-                   (sw_lon + ne_lon) / 2), zoom=10)
+m = ipyleaflet.Map(center=((AOI_GCS.bounds[1] + AOI_GCS.bounds[3]) / 2,
+                   (AOI_GCS.bounds[0] + AOI_GCS.bounds[2]) / 2), zoom=zoom)
 geo_json = ipyleaflet.GeoJSON(data=AOI_GCS.__geo_interface__)
 m.add_layer(geo_json)
 m.save('user_defined_aoi.html')
