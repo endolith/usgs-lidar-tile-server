@@ -82,6 +82,8 @@ import pdal
 import pyproj
 import requests
 import rioxarray as rio
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.figure import Figure
 from osgeo import gdal
 from rasterio.enums import Resampling
 from scipy.ndimage import gaussian_filter, sobel
@@ -964,11 +966,11 @@ dsm = downsample_dem(dsm)
 Using the argument `robust=True` stretches the colors between the 2nd and 98th percentiles of our elevation data. This is just for visualization - the original values are preserved.
 """
 
-plt.figure(figsize=(10, 10))
-dsm.plot(cmap="turbo", robust=True)
-plt.title("Digital Surface Model (DSM) in Meters")
-plt.ticklabel_format(style="plain")
-plt.axis('equal')
+# plt.figure(figsize=(10, 10))
+# dsm.plot(cmap="turbo", robust=True)
+# plt.title("Digital Surface Model (DSM) in Meters")
+# plt.ticklabel_format(style="plain")
+# plt.axis('equal')
 
 """Pretty cool, right? But what if we would like to look at a statistical distribution of the elevation in this region? We can plot a simple histogram, as shown below."""
 
@@ -1039,13 +1041,13 @@ smoothed_dsm = gaussian_filter(dsm_filled, sigma=sigma)
 # Subtract the smoothed DSM from the original DSM to apply a high-pass filter
 high_pass_dsm = dsm_filled - smoothed_dsm
 
-# Plot the result of High-Pass Filter
-plt.figure(figsize=(10, 10))
-plt.imshow(high_pass_dsm, cmap='gray')
-plt.title("High-Pass Filtered DSM")
-plt.colorbar()
-plt.axis('equal')
-plt.show()
+# # Plot the result of High-Pass Filter
+# plt.figure(figsize=(10, 10))
+# plt.imshow(high_pass_dsm, cmap='gray')
+# plt.title("High-Pass Filtered DSM")
+# plt.colorbar()
+# plt.axis('equal')
+# plt.show()
 
 # # Compute the gradient of the DSM using Sobel filter for edge detection
 # sobel_x = sobel(dsm_filled, axis=1)  # Gradient along x-axis
@@ -1061,3 +1063,22 @@ plt.show()
 # plt.colorbar()
 # plt.axis('equal')
 # plt.show()
+
+
+def save_tile_png(high_pass_dsm, zoom, x, y, tile_size=512):
+    fig = Figure(figsize=(tile_size/100, tile_size/100), dpi=100)
+    canvas = FigureCanvasAgg(fig)
+    ax = fig.add_subplot(111)
+
+    ax.imshow(high_pass_dsm, cmap='gray', interpolation='nearest')
+    ax.axis('off')
+    fig.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
+
+    tile_filename = f'tile_{zoom}_{x}_{y}.png'
+    canvas.print_figure(tile_filename, dpi=100,
+                        pad_inches=0, bbox_inches='tight')
+    print(f"Tile saved as {tile_filename}")
+
+
+# After generating the high_pass_dsm
+save_tile_png(high_pass_dsm, zoom, x, y)
