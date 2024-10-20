@@ -497,11 +497,14 @@ if not os.path.exists('resources.geojson'):
     r = requests.get(url)
     with open('resources.geojson', 'w') as f:
         f.write(r.content.decode("utf-8"))
+else:
+    print('File "resources.geojson" already exists.')
 
 with open('resources.geojson', 'r') as f:
     geojsons_3DEP = json.load(f)
 
 # make pandas dataframe and create pandas.Series objects for the names, urls, and number of points for each boundary.
+print('Creating dataframe...')
 with open('resources.geojson', 'r') as f:
     df = gpd.read_file(f)
     names = df['name']
@@ -509,6 +512,7 @@ with open('resources.geojson', 'r') as f:
     num_points = df['count']
 
 # project the boundaries to EPSG 3857 (necessary for API call to AWS for 3DEP data)
+print('Projecting boundaries...')
 projected_geoms = []
 for geometry in df['geometry']:
     projected_geoms.append(gcs_to_proj(geometry))
