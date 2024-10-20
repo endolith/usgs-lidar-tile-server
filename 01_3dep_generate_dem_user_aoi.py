@@ -802,7 +802,7 @@ The following cells will produce a Digital Terrain Model (DTM), also called a 'b
 # Change dem_outname to descriptive name and change dem_outExt and driver to desired file type.
 
 pointcloud_resolution = user_resolution.value
-dtm_resolution = 2.0
+dtm_resolution = 0.5
 dtm_pipeline = make_DEM_pipeline(AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution, dtm_resolution,
                                  filterNoise=True, reclassify=False, savePointCloud=False, outCRS=3857,
                                  pc_outName='pointcloud_test', pc_outType='laz', demType='dtm',
