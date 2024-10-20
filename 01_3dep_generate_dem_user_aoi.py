@@ -592,7 +592,7 @@ def create_bounding_box(sw_lat, sw_lon, ne_lat, ne_lon):
 lat, lon = 43.7929183, -73.4835795
 
 # Nearby house which has high res USGS 3DEP
-lat, lon = 43.7976215, -73.4860612
+# lat, lon = 43.7976215, -73.4860612
 
 # Juniper Island to see if it excludes water
 # lat, lon = 43.7937800, -73.4702410
@@ -601,13 +601,41 @@ lat, lon = 43.7976215, -73.4860612
 # lat, lon = 41.7391973, -74.2296844
 
 # Peterskill office
-lat, lon = 41.7388041, -74.2178655
+# lat, lon = 41.7388041, -74.2178655
 
 # Oops Block
 # lat, lon = 41.7396718, -74.2154604
 
-sw_lat, sw_lon = lat - 0.0002, lon - 0.0002
-ne_lat, ne_lon = lat + 0.0002, lon + 0.0002
+# Crumbling Under Pressure
+# lat, lon = 41.1472786, -74.1708238
+
+# Bathroom obscured by tree somewhat
+lat, lon = 43.7941338, -73.4843751
+
+# Another somewhat
+lat, lon = 43.7935676, -73.4855400
+
+# Rumney bathroom
+lat, lon = 43.8017435, -71.8347284
+
+# Invisible Rumney bathroom
+lat, lon = 43.8022622, -71.8300657
+
+# Hanging Mountain portapotty
+lat, lon = 42.0702446, -73.0653542
+
+# Squirrel wall
+lat, lon = 42.0705253, -73.0672686
+
+# Cave wall
+lat, lon = 42.6643144, -74.0201719
+
+# Lower Misery two-tier cliff
+lat, lon = 42.6636367, -74.0202740
+
+inc = 0.0003
+sw_lat, sw_lon = lat - inc, lon - inc
+ne_lat, ne_lon = lat + inc, lon + inc
 
 AOI_GCS = create_bounding_box(sw_lat, sw_lon, ne_lat, ne_lon)
 AOI_EPSG3857 = gcs_to_proj(AOI_GCS)
@@ -821,7 +849,7 @@ Do not modify the `AOI_EPSG3857_wkt`, `usgs_3dep_datasets`, or `pointcloud_resol
 # Change dem_outName to descriptive name; dem_outExt can be any extension supported by gdal.
 
 pointcloud_resolution = user_resolution.value
-dsm_resolution = 0.5
+dsm_resolution = 0.65
 dsm_pipeline = make_DEM_pipeline(
     AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution,
     dsm_resolution, filterNoise=True, reclassify=False, savePointCloud=False,
