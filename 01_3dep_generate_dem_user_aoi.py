@@ -787,13 +787,11 @@ def get_3dep_data(zoom, x, y):
     # Change outCRS to EPSG code of desired coordinate reference system (Default is EPSG:3857 - Web Mercator Projection)
     # Change pc_outname to descriptive name and pc_outType to 'las' or 'laz'.
 
-    def get_unique_filename(aoi, resolution):
-        # Create a unique filename based on AOI bounds and resolution
-        bounds = aoi.bounds
-        return f"pointcloud_{bounds[0]}_{bounds[1]}_{bounds[2]}_{bounds[3]}_{resolution}.laz"
+    def get_unique_filename(zoom, x, y):
+        return f"pointclouds/pointcloud_{zoom}_{x}_{y}.laz"
 
     pointcloud_resolution = user_resolution.value
-    unique_filename = get_unique_filename(AOI_EPSG3857, pointcloud_resolution)
+    unique_filename = get_unique_filename(zoom, x, y)
 
     if os.path.exists(unique_filename):
         print(f"Using existing point cloud data: {unique_filename}")
@@ -812,6 +810,7 @@ def get_3dep_data(zoom, x, y):
             AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution,
             filterNoise=True, reclassify=False, savePointCloud=True, outCRS=3857,
             pc_outName=unique_filename[:-4], pc_outType='laz')
+
 
     """The PDAL pipeline is now constructed. Running the the PDAL Python bindings function ```pdal.Pipeline()``` creates the pdal.Pipeline object from a json-ized version of the pointcloud pipeline we created."""
 
@@ -876,7 +875,7 @@ def get_3dep_data(zoom, x, y):
     dsm_pipeline = make_DEM_pipeline(
         AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution,
         dsm_resolution, filterNoise=True, reclassify=False, savePointCloud=False,
-        outCRS=3857, pc_outName=f'pointclouds/pointcloud_{zoom}_{x}_{y}', pc_outType='laz',
+        outCRS=3857, pc_outName=get_unique_filename(zoom, x, y), pc_outType='laz',
         demType='dsm', gridMethod='min', dem_outName=f'dsms/dsm_{zoom}_{x}_{y}', dem_outExt='tif',
         driver="GTiff")
 
