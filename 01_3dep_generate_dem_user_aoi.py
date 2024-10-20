@@ -559,7 +559,6 @@ def get_3dep_data(zoom, x, y):
 
     AOI_EPSG3857 = tile_to_aoi(zoom, x, y)
 
-
     intersecting_polys = []
     for i, geom in enumerate(geometries_EPSG3857):
         if geom.intersects(AOI_EPSG3857):
@@ -567,6 +566,7 @@ def get_3dep_data(zoom, x, y):
                 (names[i], geometries_GCS[i], geometries_EPSG3857[i], urls[i], num_points[i]))
 
     # print(intersecting_polys)
+    print(f" {len(intersecting_polys)} intersecting polys in this region")
 
     """<a name="Specify-Point-Cloud-Resolution"></a>
     ### Specify Point Cloud Resolution
