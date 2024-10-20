@@ -644,23 +644,18 @@ m.add_layer(wlayer_user)
 num_pts_est = sum(number_pts_est)
 
 # Plot map and specify desired point cloud resolution using a widget
-user_resolution = widgets.RadioButtons(
-    options=[
-        (f'Full - All ~{int(math.ceil(num_pts_est/1e6)*1e6):,} points', 1.0),
-        (f'High - 2m resolution', 2.0),
-        (f'Mid  - 5m resolution', 5.0),
-        (f'Low  - 10m resolution', 10.0)
-    ],
-    layout={'width': 'max-content'},
-    disabled=False,
-)
+pointcloud_resolution = 1.0  # This corresponds to the 'Full' resolution option
 
-m.save('intersecting_3dep_polygons.html')
-print(
-    f'Your AOI at full resolution will include approximately {int(math.ceil(num_pts_est/1e6)*1e6):,} points. Select desired point cloud resolution.')
-widgets.VBox(
-    [user_resolution]
-)
+print('Using full resolution with approximately '
+      f'{int(math.ceil(num_pts_est/1e6)*1e6):,} points.')
+
+# Define user_resolution to maintain compatibility with the rest of the script
+class UserResolution:
+    def __init__(self, value):
+        self.value = value
+
+
+user_resolution = UserResolution(pointcloud_resolution)
 
 """<font color='red'>**Note**: Lidar point clouds can get *very* large, *very* fast, and the point counts provided above are an estimate. Selecting the `Full` or `High` option when using Google Colaboratory (12GB RAM allocation) may cause the runtime to fail when attempting to access data exceeding ~50-100 million points. If full resolution is desired, we recommend running this notebook locally on hardware with more RAM. Keep this in mind when deciding the AOI size and point cloud resolution above!</font>
 
