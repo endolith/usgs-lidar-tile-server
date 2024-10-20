@@ -911,7 +911,7 @@ def get_3dep_data(zoom, x, y):
 
     """DEMs can be very large and require significant RAM to plot. Here, we apply a downsampling technique for more efficient visualization."""
 
-    dsm = downsample_dem(dsm)
+    # dsm = downsample_dem(dsm)
 
     return dsm
 
