@@ -76,12 +76,14 @@ import geopandas as gpd
 import ipyleaflet
 import ipywidgets as widgets
 import matplotlib.pyplot as plt
+import numpy as np
 import pdal
 import pyproj
 import requests
 import rioxarray as rio
 from osgeo import gdal
 from rasterio.enums import Resampling
+from scipy.ndimage import gaussian_filter, sobel
 from shapely.geometry import Point, Polygon, shape
 from shapely.ops import transform
 
@@ -968,3 +970,34 @@ keywords=["OpenTopography","USGS", "CDI", "3DEP", "PDAL"]
 
 To cite this notebook:  Speed, C., Beckley, M., Crosby, C., & Nandigam, V. (2022). Generate and visualize DEMs (DTM and DSM) from USGS 3D Elevation Program (3DEP) lidar data for user-defined area of interest (Version v1.0). DOI: Accessed: MM/DD/YYYY
 """
+
+# Apply a Gaussian filter to smooth the DSM
+sigma = 5  # Adjust sigma to control the degree of smoothing
+smoothed_dsm = gaussian_filter(dsm, sigma=sigma)
+
+# Subtract the smoothed DSM from the original DSM to apply a high-pass filter
+high_pass_dsm = dsm - smoothed_dsm
+
+# Plot the result
+plt.figure(figsize=(10, 10))
+plt.imshow(high_pass_dsm, cmap='gray')
+plt.title("High-Pass Filtered DSM")
+plt.colorbar()
+plt.axis('equal')
+plt.show()
+
+
+# Compute the gradient of the DSM using Sobel filter
+sobel_x = sobel(dsm, axis=1)  # Gradient along x-axis
+sobel_y = sobel(dsm, axis=0)  # Gradient along y-axis
+
+# Compute the magnitude of the gradient (edges)
+edges = np.hypot(sobel_x, sobel_y)
+
+# Plot the result
+plt.figure(figsize=(10, 10))
+plt.imshow(edges, cmap='inferno')
+plt.title("Edge Detection on DSM")
+plt.colorbar()
+plt.axis('equal')
+plt.show()
