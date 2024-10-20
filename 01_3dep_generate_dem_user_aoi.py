@@ -71,6 +71,7 @@ import json
 import math
 import os
 import pickle
+from concurrent.futures import ThreadPoolExecutor
 
 import geopandas as gpd
 import ipyleaflet
@@ -82,7 +83,7 @@ import pdal
 import pyproj
 import requests
 import rioxarray as rio
-from flask import Flask, send_file
+from flask import Flask, jsonify, send_file
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 from osgeo import gdal
@@ -811,7 +812,6 @@ def get_3dep_data(zoom, x, y):
             filterNoise=True, reclassify=False, savePointCloud=True, outCRS=3857,
             pc_outName=unique_filename[:-4], pc_outType='laz')
 
-
     """The PDAL pipeline is now constructed. Running the the PDAL Python bindings function ```pdal.Pipeline()``` creates the pdal.Pipeline object from a json-ized version of the pointcloud pipeline we created."""
 
     pc_pipeline = pdal.Pipeline(json.dumps(pc_pipeline))
@@ -1080,6 +1080,8 @@ def save_tile_png(high_pass_dsm, zoom, x, y, tile_size=512):
 
 
 app = Flask(__name__)
+# Adjust the number of workers as needed
+executor = ThreadPoolExecutor(max_workers=4)
 
 
 @app.route('/tiles/<int:zoom>/<int:x>/<int:y>.png')
@@ -1092,11 +1094,16 @@ def serve_tile(zoom, x, y):
     if os.path.exists(tile_filename):
         return send_file(tile_filename, mimetype='image/png')
 
+    # For non-cached tiles, start async processing
+    executor.submit(process_and_save_tile, zoom, x, y)
+    return jsonify({"status": "processing"}), 202
+
+
+def process_and_save_tile(zoom, x, y):
     dsm = get_3dep_data(zoom, x, y)
     high_pass_dsm = process_dsm(dsm)
     save_tile_png(high_pass_dsm, zoom, x, y)
-    return send_file(tile_filename, mimetype='image/png')
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, threaded=True)
