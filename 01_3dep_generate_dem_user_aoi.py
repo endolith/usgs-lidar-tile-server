@@ -549,35 +549,33 @@ If **option 2** is chosen, running the next cell will produce an interactive map
 **Important Note 4 (Google Colaboratory Users Only)**: Every Google Colab instance has a RAM allotment of 12GB. This should be plenty to perform the desired tasks, assuming that an AOI of reasonble size is defined (see Important Note 3 for what is meant by 'reasonable size'). Testing of maximum possible point cloud size allowable on Google Colab instances has been minimal(other than to determine that point clouds up to several hundred million points are possible). If you perform such tests, please let us know what you find!
 """
 
-m = ipyleaflet.Map(
-    basemap=ipyleaflet.basemaps.Esri.WorldTopoMap,
-    center=(37, -100),
-    zoom=3.5,
-    crs=ipyleaflet.projections.EPSG3857
-)
 
-geo_json_3DEP = ipyleaflet.GeoJSON(data=geojsons_3DEP, style={'color': 'green', 'opacity': 1,
-                                                              'weight': 1, 'fillOpacity': 0.1})
+def create_bounding_box(sw_lat, sw_lon, ne_lat, ne_lon):
+    """
+    Create a bounding box from southwest and northeast coordinates.
+    """
+    from shapely.geometry import box
+    return box(sw_lon, sw_lat, ne_lon, ne_lat)
 
-m.add_layer(geo_json_3DEP)  # add 3DEP polygons GeoJSON
 
-dc = ipyleaflet.DrawControl(
-    polygon={"shapeOptions": {"color": "blue"}},
-    rectangle={"shapeOptions": {"color": "blue"}},
-    circlemarker={},
-    polyline={}
-)
+# Define the bounding box coordinates
+sw_lat, sw_lon = 43.792771, -73.483920
+ne_lat, ne_lon = 43.793090, -73.483397
 
-if os.path.exists(shapefile_path):
-    user_AOI = import_shapefile_to_shapely(shapefile_path)
-    print('shapefile loaded. proceed to next cell')
+AOI_GCS = create_bounding_box(sw_lat, sw_lon, ne_lat, ne_lon)
+AOI_EPSG3857 = gcs_to_proj(AOI_GCS)
 
-else:
-    print('Select an Area of Interest using the tools on the left side of the map.')
-    user_AOI = []
-    dc.on_draw(handle_draw)
-    m.add_control(dc)
-    m.save('user_defined_aoi.html')
+user_AOI = [(AOI_GCS, AOI_EPSG3857)]
+
+print(
+    f'AOI is valid and has boundaries of {AOI_EPSG3857.bounds}. Please proceed to the next cell.')
+
+# Save the map for visualization (optional)
+m = ipyleaflet.Map(center=((sw_lat + ne_lat) / 2,
+                   (sw_lon + ne_lon) / 2), zoom=10)
+geo_json = ipyleaflet.GeoJSON(data=AOI_GCS.__geo_interface__)
+m.add_layer(geo_json)
+m.save('user_defined_aoi.html')
 
 """<a name="Find-3DEP-Polygon(s)-Intersecting-AOI"></a>
 ### Find 3DEP Polygon(s) Intersecting AOI
