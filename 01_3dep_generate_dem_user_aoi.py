@@ -585,12 +585,22 @@ def create_bounding_box(sw_lat, sw_lon, ne_lat, ne_lon):
 
 # That bathroom at Roger's Rock campground hidden in the woods
 lat, lon = 43.7929183, -73.4835795
-# sw_lat, sw_lon = 43.792771, -73.483920
-# ne_lat, ne_lon = 43.793090, -73.483397
-# Low res for some reason.
 
 # Nearby house which has high res USGS 3DEP
 lat, lon = 43.7976215, -73.4860612
+
+# Juniper Island to see if it excludes water
+# lat, lon = 43.7937800, -73.4702410
+
+# Power House ruins
+# lat, lon = 41.7391973, -74.2296844
+
+# Peterskill office
+lat, lon = 41.7388041, -74.2178655
+
+# Oops Block
+# lat, lon = 41.7396718, -74.2154604
+
 sw_lat, sw_lon = lat - 0.0002, lon - 0.0002
 ne_lat, ne_lon = lat + 0.0002, lon + 0.0002
 
