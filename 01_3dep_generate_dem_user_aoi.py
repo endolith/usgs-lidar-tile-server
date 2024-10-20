@@ -766,11 +766,11 @@ Do not modify the `AOI_EPSG3857_wkt`, `usgs_3dep_datasets`, or `pointcloud_resol
 # Change dem_outName to descriptive name; dem_outExt can be any extension supported by gdal.
 
 pointcloud_resolution = user_resolution.value
-dsm_resolution = 2.0
+dsm_resolution = 0.5
 dsm_pipeline = make_DEM_pipeline(AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution, dsm_resolution,
                                  filterNoise=True, reclassify=False, savePointCloud=False, outCRS=32613,
                                  pc_outName='pointcloud_test', pc_outType='laz', demType='dsm',
-                                 gridMethod='idw', dem_outName='test_dsm', dem_outExt='tif', driver="GTiff")
+                                 gridMethod='min', dem_outName='test_dsm', dem_outExt='tif', driver="GTiff")
 
 """The PDAL pipeline is now constructed for making the DSM. Running the the PDAL Python bindings function ```pdal.Pipeline()``` creates the pdal.Pipeline object from a json-ized version of the pointcloud pipeline we created."""
 
@@ -807,16 +807,16 @@ names/extensions.
 # Change outCRS to EPSG code of desired coordinate reference system (Default is EPSG:3857 - Web Mercator Projection)
 # Change dem_outname to descriptive name and change dem_outExt and driver to desired file type.
 
-pointcloud_resolution = user_resolution.value
-dtm_resolution = 0.5
-dtm_pipeline = make_DEM_pipeline(AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution, dtm_resolution,
-                                 filterNoise=True, reclassify=False, savePointCloud=False, outCRS=3857,
-                                 pc_outName='pointcloud_test', pc_outType='laz', demType='dtm',
-                                 gridMethod='idw', dem_outName='test_dtm', dem_outExt='tif', driver="GTiff")
+# pointcloud_resolution = user_resolution.value
+# dtm_resolution = 0.5
+# dtm_pipeline = make_DEM_pipeline(AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution, dtm_resolution,
+#                                  filterNoise=True, reclassify=False, savePointCloud=False, outCRS=3857,
+#                                  pc_outName='pointcloud_test', pc_outType='laz', demType='dtm',
+#                                  gridMethod='idw', dem_outName='test_dtm', dem_outExt='tif', driver="GTiff")
 
 """The PDAL pipeline is now constructed for making the DTM. Running the the PDAL Python bindings function ```pdal.Pipeline()``` creates the pdal.Pipeline object from a json-ized version of the pointcloud pipeline we created."""
 
-dtm_pipeline = pdal.Pipeline(json.dumps(dtm_pipeline))
+# dtm_pipeline = pdal.Pipeline(json.dumps(dtm_pipeline))
 
 """The cell below will execute the dtm_pipeline object, which will make the API request, performing processing, and save the point cloud (if `savePointCloud == True`) and create and save the DTM at the specified location, name, and extension.
 
@@ -828,7 +828,7 @@ Executing the pipeline in streaming mode will speed up the process and cuts down
 # Commented out IPython magic to ensure Python compatibility.
 # %%time
 # use this if reclassify == False
-dtm_pipeline.execute_streaming(chunk_size=1000000)
+# dtm_pipeline.execute_streaming(chunk_size=1000000)
 # dtm_pipeline.execute() # use this if reclassify == True
 
 """<a name="Visualize-DEMs-(DSM/DTM)"></a>
@@ -839,12 +839,12 @@ We can now visualize the DSM or DTM products in the Jupyter Notebook. We use the
 
 """Now we must define the file name we would like to plot. This could be a file path (e.g., `/path/to/my/dtm/dtm.tif`). Then we open the dtm as an `xarray` object."""
 
-dtm_name = 'test_dtm.tif'  # /path/to/your/dtm/dtm.tif
-dtm = rio.open_rasterio(dtm_name, masked=True).squeeze()
+dsm_name = 'test_dsm.tif'  # /path/to/your/dtm/dtm.tif
+dsm = rio.open_rasterio(dsm_name, masked=True).squeeze()
 
 """DEMs can be very large and require significant RAM to plot. Here, we apply a downsampling technique for more efficient visualization."""
 
-dtm = downsample_dem(dtm)
+dsm = downsample_dem(dsm)
 
 """Now we plot the DTM. By default, we use the 'viridis' colorbar to plot the bare earth elevation. Other colormaps can be used, and more information about available colormaps can be found here: https://matplotlib.org/stable/tutorials/colors/colormaps.html ).
 
@@ -852,15 +852,15 @@ Using the argument `robust=True` stretches the colors between the 2nd and 98th p
 """
 
 plt.figure(figsize=(10, 10))
-dtm.plot(cmap="viridis", robust=True)
-plt.title("Digital Terrain Model (DTM) in Meters")
+dsm.plot(cmap="viridis", robust=True)
+plt.title("Digital Surface Model (DSM) in Meters")
 plt.ticklabel_format(style="plain")
 plt.axis('equal')
 
 """Pretty cool, right? But what if we would like to look at a statistical distribution of the elevation in this region? We can plot a simple histogram, as shown below."""
 
 plt.figure(figsize=(10, 10))
-dtm.plot.hist(bins=100)
+dsm.plot.hist(bins=100)
 plt.title("Distribution of Elevation in Meters")
 
 """<a name="Conclusion"></a>
