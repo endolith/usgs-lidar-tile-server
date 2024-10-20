@@ -1084,6 +1084,9 @@ app = Flask(__name__)
 
 @app.route('/tiles/<int:zoom>/<int:x>/<int:y>.png')
 def serve_tile(zoom, x, y):
+    if zoom != 20:
+        return "Zoom level too low", 400
+
     dsm = get_3dep_data(zoom, x, y)
     high_pass_dsm = process_dsm(dsm)
     tile_filename = save_tile_png(high_pass_dsm, zoom, x, y)
