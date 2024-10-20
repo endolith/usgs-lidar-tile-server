@@ -800,7 +800,7 @@ dsm_resolution = 0.5
 dsm_pipeline = make_DEM_pipeline(
     AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution,
     dsm_resolution, filterNoise=True, reclassify=False, savePointCloud=False,
-    outCRS=32613, pc_outName='pointcloud_test', pc_outType='laz',
+    outCRS=3857, pc_outName='pointcloud_test', pc_outType='laz',
     demType='dsm', gridMethod='min', dem_outName='test_dsm', dem_outExt='tif',
     driver="GTiff")
 
