@@ -74,8 +74,6 @@ import pickle
 from concurrent.futures import ThreadPoolExecutor
 
 import geopandas as gpd
-import ipyleaflet
-import ipywidgets as widgets
 import mercantile
 import numpy as np
 import pdal
@@ -85,10 +83,9 @@ import rioxarray as rio
 from flask import Flask, jsonify, send_file
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
-from osgeo import gdal
 from rasterio.enums import Resampling
 from scipy.ndimage import gaussian_filter
-from shapely.geometry import Point, Polygon, box, shape
+from shapely.geometry import box
 from shapely.ops import transform
 
 # Create directories if they don't exist
@@ -183,45 +180,6 @@ def gcs_to_proj(poly):
         wgs84, web_mercator, always_xy=True).transform
     user_poly_proj3857 = transform(project, poly)
     return (user_poly_proj3857)
-
-
-def import_shapefile_to_shapely(path):
-    """
-    Conversion of shapefile to shapely object.
-
-    Parameters:
-        path (filepath): location of shapefile on user's local file system
-
-    Returns:
-        user_AOI (shapely polygon): User AOI
-    """
-    shapefile_path = path
-    gdf = gpd.read_file(shapefile_path)
-    # this is the original CRS of the imported shapefile
-    orig_crs = gdf.crs
-    user_shp = gdf.loc[0, 'geometry']
-    user_shp_epsg4326, user_shp_epsg3857 = proj_to_3857(user_shp, orig_crs)
-    user_AOI = [[user_shp_epsg4326, user_shp_epsg3857]]
-    return user_AOI
-
-
-def handle_draw(target, action, geo_json):
-    """
-    Functionality to draw area of interest (AOI) on interactive ipyleaflet map.
-
-    Parameters:
-        extent_epsg3857 (shapely polygon): Polygon of user-defined AOI
-        usgs_3dep_dataset_name (str): Name of 3DEP dataset which AOI overlaps
-        resolution (float): The desired resolution of the pointcloud based on the following definition:
-    """
-
-    geom = dict(geo_json['geometry'])
-    user_poly = shape(geom)
-    user_poly_proj3857 = gcs_to_proj(user_poly)
-    print('AOI is valid and has boundaries of ',
-          user_poly_proj3857.bounds, 'Please proceed to the next cell.')
-    # for various reasons, we need user AOI in GCS and EPSG 3857
-    user_AOI.append((user_poly, user_poly_proj3857))
 
 
 def downsample_dem(dem):
@@ -553,25 +511,7 @@ else:
 
 print('Done. 3DEP polygons downloaded and projected to Web Mercator (EPSG:3857)')
 
-"""<a name="Create-Interactive-Ipyleaflet-Map-And-Define-AOI"></a>
-### Create Interactive Ipyleaflet Map and Define AOI
-Next, we will define our area of interest (AOI) using an ipyleaflet interactive map and the 3DEP dataset polygons loaded in the prior step.  There are currently two options for defining the AOI:
-
-1. **Option 1** - User loads their own shapefile (.shp) to define the AOI. If using Google Colab, shapefile should be uploaded to the Google Drive folder or within the runtime in the browser.
-
-- To use **option 1**, In the following cell, the system path to the .shp should be included between the quotes (e.g., ```shapefile = '/path/to/shapefile.shp'```). The other associated files (.cpg, .dbf., .prj, .shx) must be present within the same folder.  If using Google Colab, the  path should be to the file in the user's Google Drive (i.e., /content/drive/shapefile.shp). If running locally, the path shoudl be to the location of the shapefile on the user's local file system.
-
-2. **Option 2** - User draws a polygon on an ipyleaflet interactive map to define the AOI.
-
- - To use **option 2**, the path should be left blank (```shapefile = ''```), as it is by default.
-
-**The cell must be run either way.**
 """
-
-# Enter shapefile path, if applicable. Example: shapefile_path = '/path/to/shapefile.shp'.
-# Otherwise leave as shapefile_path = ''
-# Run this cell either way, or next cell will not run appropriately.
-shapefile_path = ''
 
 """If **option 1** is chosen, running the next cell will load the shapefile and print `shapefile loaded. proceed to next cell`.
 
@@ -595,61 +535,6 @@ def create_bounding_box(sw_lat, sw_lon, ne_lat, ne_lon):
     return box(sw_lon, sw_lat, ne_lon, ne_lat)
 
 
-# Define the bounding box coordinates
-
-# # That bathroom at Roger's Rock campground hidden in the woods
-# lat, lon = 43.7929183, -73.4835795
-
-# # Nearby house which has high res USGS 3DEP
-# # lat, lon = 43.7976215, -73.4860612
-
-# # Juniper Island to see if it excludes water
-# # lat, lon = 43.7937800, -73.4702410
-
-# # Power House ruins
-# # lat, lon = 41.7391973, -74.2296844
-
-# # Peterskill office
-# # lat, lon = 41.7388041, -74.2178655
-
-# # Oops Block
-# # lat, lon = 41.7396718, -74.2154604
-
-# # Crumbling Under Pressure
-# # lat, lon = 41.1472786, -74.1708238
-
-# # Bathroom obscured by tree somewhat
-# lat, lon = 43.7941338, -73.4843751
-
-# # Another somewhat
-# lat, lon = 43.7935676, -73.4855400
-
-# # Rumney bathroom
-# lat, lon = 43.8017435, -71.8347284
-
-# # Invisible Rumney bathroom
-# lat, lon = 43.8022622, -71.8300657
-
-# # Hanging Mountain portapotty
-# lat, lon = 42.0702446, -73.0653542
-
-# # Squirrel wall
-# lat, lon = 42.0705253, -73.0672686
-
-# # Cave wall
-# lat, lon = 42.6643144, -74.0201719
-
-# # Lower Misery two-tier cliff
-# lat, lon = 42.6636367, -74.0202740
-
-# inc = 0.0003
-# sw_lat, sw_lon = lat - inc, lon - inc
-# ne_lat, ne_lon = lat + inc, lon + inc
-
-
-# Slippy map
-
-
 def tile_to_aoi(zoom, x, y):
     """
     Example usage:
@@ -666,29 +551,14 @@ def tile_to_aoi(zoom, x, y):
     # Convert to EPSG:3857 (Web Mercator)
     aoi_3857 = gcs_to_proj(aoi_polygon)
 
-    return aoi_polygon, aoi_3857
-
-
-# Define the tile coordinates
-# zoom, x, y = 20, 308688, 386634  # Helmus Crevice
-# zoom, x, y = 20, 308688, 386631  # Cave Wall
-
-
-AOI_GCS, AOI_EPSG3857 = tile_to_aoi(zoom, x, y)
-
-# # Save the map for visualization (optional)
-# m = ipyleaflet.Map(center=((AOI_GCS.bounds[1] + AOI_GCS.bounds[3]) / 2,
-#                    (AOI_GCS.bounds[0] + AOI_GCS.bounds[2]) / 2), zoom=zoom)
-# geo_json = ipyleaflet.GeoJSON(data=AOI_GCS.__geo_interface__)
-# m.add_layer(geo_json)
-# m.save('user_defined_aoi.html')
+    return aoi_3857
 
 
 def get_3dep_data(zoom, x, y):
     reclassify = False
 
-    AOI_GCS, AOI_EPSG3857 = tile_to_aoi(zoom, x, y)
-    user_AOI = [(AOI_GCS, AOI_EPSG3857)]
+    AOI_EPSG3857 = tile_to_aoi(zoom, x, y)
+
 
     intersecting_polys = []
     for i, geom in enumerate(geometries_EPSG3857):
@@ -707,46 +577,20 @@ def get_3dep_data(zoom, x, y):
     Select the appropriate radio button below the map to specify `pointcloud_resolution`.
     """
 
-    # Find AOI center for plotting purposes
-    centroid = list(AOI_GCS.centroid.coords)[0]
-
-    # make ipyleaflet map
-    m = ipyleaflet.Map(
-        basemap=ipyleaflet.basemaps.Esri.WorldTopoMap,
-        center=(centroid[1], centroid[0]),
-        zoom=12,
-    )
-
     # add intersecting 3DEP polygon(s) to the map
-    wlayer_3DEP_list = []
     usgs_3dep_datasets = []
     number_pts_est = []
     for i, poly in enumerate(intersecting_polys):
-        wlayer_3DEP = ipyleaflet.WKTLayer(
-            wkt_string=poly[1].wkt,
-            style={"color": "green"})
-
-        m.add_layer(wlayer_3DEP)
-        wlayer_3DEP_list.append(wlayer_3DEP)
         usgs_3dep_datasets.append(poly[0])
 
         # estimate total points using ratio of area and point count
         number_pts_est.append(
             (int((AOI_EPSG3857.area/poly[2].area)*(poly[4]))))
 
-    # make ipyleaflet layers from the AOI and add to map
-    wlayer_user = ipyleaflet.WKTLayer(
-        wkt_string=AOI_GCS.boundary.wkt,
-        style={"color": "blue"}
-    )
-
     AOI_EPSG3857_wkt = AOI_EPSG3857.wkt
-    m.add_layer(wlayer_user)
 
     # sum the estimates of the number of points from each 3DEP dataset within the AOI
     num_pts_est = sum(number_pts_est)
-
-    # Plot map and specify desired point cloud resolution using a widget
     pointcloud_resolution = 1.0  # This corresponds to the 'Full' resolution option
 
     print('Using full resolution with approximately '
@@ -824,8 +668,6 @@ def get_3dep_data(zoom, x, y):
     **Note**: If `reclassify == True` in the pipeline constructed above, a step is added for removing assigned USGS classifications and running a SMRF filter to classify ground points only. When `reclassify == True`, the PDAL pipeline cannot be executed in streaming mode, as reclassification requires all points to be present in memory. **<font color='red'>Be aware that this will be slower than executing in streaming mode and may not be possible for very large point clouds due to RAM limitations.</font>** Commands for executing the pipeline in streaming and non-streaming mode are included below. Comment/uncomment the appropriate command below (depending on whether `reclassify == True` or `reclassify == False` in the pipeline constructed above).
     """
 
-    # Commented out IPython magic to ensure Python compatibility.
-    # %%time
     if not os.path.exists(unique_filename):
         if reclassify:
             pc_pipeline.execute()
@@ -873,7 +715,7 @@ def get_3dep_data(zoom, x, y):
     # Change dem_outName to descriptive name; dem_outExt can be any extension supported by gdal.
 
     pointcloud_resolution = user_resolution.value
-    dsm_resolution = 0.65
+    dsm_resolution = 0.5
     dsm_pipeline = make_DEM_pipeline(
         AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution,
         dsm_resolution, filterNoise=True, reclassify=reclassify, savePointCloud=False,
@@ -891,9 +733,6 @@ def get_3dep_data(zoom, x, y):
 
     **Note**: If `reclassify == True` in the pipeline constructed above, a step is added for removing assigned USGS classifications and running a SMRF filter to classify ground points only. When `reclassify == True`, the PDAL pipeline cannot be executed in streaming mode, as reclassification requires all points to be present in memory. **<font color='red'>Be aware that this will be slower than executing in streaming mode and may not be possible for very large point clouds due to RAM limitations.</font>** Commands for executing the pipeline in streaming and non-streaming mode are included below. Comment/uncomment the appropriate command below (depending on whether `reclassify == True` or `reclassify == False` in the pipeline constructed above).
     """
-
-    # Commented out IPython magic to ensure Python compatibility.
-    # %%time
     if reclassify:
         dsm_pipeline.execute()
     else:
