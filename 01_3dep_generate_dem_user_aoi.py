@@ -895,48 +895,6 @@ def get_3dep_data(zoom, x, y):
     dsm_pipeline.execute_streaming(chunk_size=1000000)
     # dsm_pipeline.execute() # use this if reclassify == True
 
-    """Below, the same process is outlined for the making of at DTM.
-
-    <a name="Make-Digital-Terrain-Model-(DTM)"></a>
-    ### Make Digital Terrain Model (DTM)
-
-    The following cells will produce a Digital Terrain Model (DTM), also
-    called a 'bare earth model' using lidar returns classified as 'ground' (USGS
-    Class 2). Do not modify the `AOI_EPSG3857_wkt`, `usgs_3dep_datasets`, or
-    `pointcloud_resolution` arguments. Specify the desired dtm resolution (in
-    meters), the appropriate point cloud processing steps, and the file
-    names/extensions.
-    """
-
-    # Do not modify AOI_EPSG3857_wkt, usgs_3dep_datasets, or pointcloud_resolution
-    # Modify the optional arguments to fit user need.
-    # Change outCRS to EPSG code of desired coordinate reference system (Default is EPSG:3857 - Web Mercator Projection)
-    # Change dem_outname to descriptive name and change dem_outExt and driver to desired file type.
-
-    # pointcloud_resolution = user_resolution.value
-    # dtm_resolution = 0.5
-    # dtm_pipeline = make_DEM_pipeline(AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution, dtm_resolution,
-    #                                  filterNoise=True, reclassify=False, savePointCloud=False, outCRS=3857,
-    #                                  pc_outName='pointcloud_test', pc_outType='laz', demType='dtm',
-    #                                  gridMethod='idw', dem_outName='test_dtm', dem_outExt='tif', driver="GTiff")
-
-    """The PDAL pipeline is now constructed for making the DTM. Running the the PDAL Python bindings function ```pdal.Pipeline()``` creates the pdal.Pipeline object from a json-ized version of the pointcloud pipeline we created."""
-
-    # dtm_pipeline = pdal.Pipeline(json.dumps(dtm_pipeline))
-
-    """The cell below will execute the dtm_pipeline object, which will make the API request, performing processing, and save the point cloud (if `savePointCloud == True`) and create and save the DTM at the specified location, name, and extension.
-
-    Executing the pipeline in streaming mode will speed up the process and cuts down on the required RAM. The `%%time` magic command will return the total computation time. The final output is the total number of points returned.
-
-    **Note**: If `reclassify == True` in the pipeline constructed above, a step is added for removing assigned USGS classifications and running a SMRF filter to classify ground points only. When `reclassify == True`, the PDAL pipeline cannot be executed in streaming mode, as reclassification requires all points to be present in memory. **<font color='red'>Be aware that this will be slower than executing in streaming mode and may not be possible for very large point clouds due to RAM limitations.</font>** Commands for executing the pipeline in streaming and non-streaming mode are included below. Comment/uncomment the appropriate command below (depending on whether `reclassify == True` or `reclassify == False` in the pipeline constructed above).
-    """
-
-    # Commented out IPython magic to ensure Python compatibility.
-    # %%time
-    # use this if reclassify == False
-    # dtm_pipeline.execute_streaming(chunk_size=1000000)
-    # dtm_pipeline.execute() # use this if reclassify == True
-
     """<a name="Visualize-DEMs-(DSM/DTM)"></a>
     ## Visualize the DEM (DSM/DTM)
     We can now visualize the DSM or DTM products in the Jupyter Notebook. We use the <a href="https://corteva.github.io/rioxarray/stable/"> rioxarray </a> and <a href="https://matplotlib.org/stable/users/index.html"> matplotlib </a> Python libraries for simple plotting. We import `rioxarray` and `matplotlib.pyplot` here.
@@ -953,24 +911,6 @@ def get_3dep_data(zoom, x, y):
 
     return dsm
 
-
-
-"""Now we plot the DTM. By default, we use the 'viridis' colorbar to plot the bare earth elevation. Other colormaps can be used, and more information about available colormaps can be found here: https://matplotlib.org/stable/tutorials/colors/colormaps.html ).
-
-Using the argument `robust=True` stretches the colors between the 2nd and 98th percentiles of our elevation data. This is just for visualization - the original values are preserved.
-"""
-
-# plt.figure(figsize=(10, 10))
-# dsm.plot(cmap="turbo", robust=True)
-# plt.title("Digital Surface Model (DSM) in Meters")
-# plt.ticklabel_format(style="plain")
-# plt.axis('equal')
-
-"""Pretty cool, right? But what if we would like to look at a statistical distribution of the elevation in this region? We can plot a simple histogram, as shown below."""
-
-# plt.figure(figsize=(10, 10))
-# dsm.plot.hist(bins=100)
-# plt.title("Distribution of Elevation in Meters")
 
 """<a name="Conclusion"></a>
 ## Conclusion
