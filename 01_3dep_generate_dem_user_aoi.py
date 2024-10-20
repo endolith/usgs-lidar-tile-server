@@ -662,7 +662,8 @@ def tile_to_aoi(zoom, x, y):
 
 
 # Define the tile coordinates
-zoom, x, y = 20, 308688, 386634  # Thacher
+zoom, x, y = 20, 308688, 386634  # Helmus Crevice
+zoom, x, y = 20, 308688, 386631  # Cave Wall
 
 # Convert tile coordinates to AOI
 AOI_GCS, AOI_EPSG3857 = tile_to_aoi(zoom, x, y)
