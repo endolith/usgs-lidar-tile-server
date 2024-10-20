@@ -91,6 +91,11 @@ from scipy.ndimage import gaussian_filter, sobel
 from shapely.geometry import Point, Polygon, box, shape
 from shapely.ops import transform
 
+# Create directories if they don't exist
+os.makedirs('tiles', exist_ok=True)
+os.makedirs('dsms', exist_ok=True)
+os.makedirs('pointclouds', exist_ok=True)
+
 """**If using Option 1 (Google Colab), proceed to Library Imports**
 
 <a name="Option-2:-Install-and-run-on-local-file-system"></a>
@@ -871,8 +876,8 @@ def get_3dep_data(zoom, x, y):
     dsm_pipeline = make_DEM_pipeline(
         AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution,
         dsm_resolution, filterNoise=True, reclassify=False, savePointCloud=False,
-        outCRS=3857, pc_outName='pointcloud_test', pc_outType='laz',
-        demType='dsm', gridMethod='min', dem_outName=f'dsm_{zoom}_{x}_{y}', dem_outExt='tif',
+        outCRS=3857, pc_outName=f'pointclouds/pointcloud_{zoom}_{x}_{y}', pc_outType='laz',
+        demType='dsm', gridMethod='min', dem_outName=f'dsms/dsm_{zoom}_{x}_{y}', dem_outExt='tif',
         driver="GTiff")
 
     """The PDAL pipeline is now constructed for making the DSM. Running the the PDAL Python bindings function ```pdal.Pipeline()``` creates the pdal.Pipeline object from a json-ized version of the pointcloud pipeline we created."""
@@ -941,7 +946,7 @@ def get_3dep_data(zoom, x, y):
 
     """Now we must define the file name we would like to plot. This could be a file path (e.g., `/path/to/my/dtm/dtm.tif`). Then we open the dtm as an `xarray` object."""
 
-    dsm_name = f'dsm_{zoom}_{x}_{y}.tif'
+    dsm_name = f'dsms/dsm_{zoom}_{x}_{y}.tif'
     dsm = rio.open_rasterio(dsm_name, masked=True).squeeze()
 
     """DEMs can be very large and require significant RAM to plot. Here, we apply a downsampling technique for more efficient visualization."""
@@ -1068,7 +1073,7 @@ def save_tile_png(high_pass_dsm, zoom, x, y, tile_size=512):
     ax.axis('off')
     fig.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
 
-    tile_filename = f'tile_{zoom}_{x}_{y}.png'
+    tile_filename = f'tiles/tile_{zoom}_{x}_{y}.png'
     canvas.print_figure(tile_filename, dpi=100,
                         pad_inches=0, bbox_inches='tight')
     print(f"Tile saved as {tile_filename}")

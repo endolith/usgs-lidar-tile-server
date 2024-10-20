@@ -220,3 +220,11 @@ __marimo__/
 *.profile.txt
 *.jpg
 .stfolder/
+
+# SSL certificates
+*.pem
+
+# Project specific
+tiles/
+dsms/
+pointclouds/
