@@ -1087,9 +1087,14 @@ def serve_tile(zoom, x, y):
     if zoom != 20:
         return "Zoom level too low", 400
 
+    tile_filename = f'tiles/tile_{zoom}_{x}_{y}.png'
+
+    if os.path.exists(tile_filename):
+        return send_file(tile_filename, mimetype='image/png')
+
     dsm = get_3dep_data(zoom, x, y)
     high_pass_dsm = process_dsm(dsm)
-    tile_filename = save_tile_png(high_pass_dsm, zoom, x, y)
+    save_tile_png(high_pass_dsm, zoom, x, y)
     return send_file(tile_filename, mimetype='image/png')
 
 
