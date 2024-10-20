@@ -732,11 +732,33 @@ Paramaters (for more detailed descriptions of parameters, see <a href="#Define-F
 # Change outCRS to EPSG code of desired coordinate reference system (Default is EPSG:3857 - Web Mercator Projection)
 # Change pc_outname to descriptive name and pc_outType to 'las' or 'laz'.
 
+
+def get_unique_filename(aoi, resolution):
+    # Create a unique filename based on AOI bounds and resolution
+    bounds = aoi.bounds
+    return f"pointcloud_{bounds[0]}_{bounds[1]}_{bounds[2]}_{bounds[3]}_{resolution}.laz"
+
+
 pointcloud_resolution = user_resolution.value
-pc_pipeline = build_pdal_pipeline(
-    AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution,
-    filterNoise=True, reclassify=False, savePointCloud=True, outCRS=3857,
-    pc_outName='pointcloud_test', pc_outType='laz')
+unique_filename = get_unique_filename(AOI_EPSG3857, pointcloud_resolution)
+
+if os.path.exists(unique_filename):
+    print(f"Using existing point cloud data: {unique_filename}")
+    pc_pipeline = {
+        "pipeline": [
+            {
+                "type": "readers.las",
+                "filename": unique_filename
+            }
+        ]
+    }
+else:
+    print(
+        f"Fetching point cloud data from AWS and saving as: {unique_filename}")
+    pc_pipeline = build_pdal_pipeline(
+        AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution,
+        filterNoise=True, reclassify=False, savePointCloud=True, outCRS=3857,
+        pc_outName=unique_filename[:-4], pc_outType='laz')
 
 """The PDAL pipeline is now constructed. Running the the PDAL Python bindings function ```pdal.Pipeline()``` creates the pdal.Pipeline object from a json-ized version of the pointcloud pipeline we created."""
 
@@ -752,7 +774,8 @@ Executing the pipeline in streaming mode will speed up the process and cuts down
 # Commented out IPython magic to ensure Python compatibility.
 # %%time
 # use this if reclassify == False
-pc_pipeline.execute_streaming(chunk_size=1000000)
+if not os.path.exists(unique_filename):
+    pc_pipeline.execute_streaming(chunk_size=1000000)
 # pc_pipeline.execute() # use this if reclassify == True
 
 """If the user only desires point cloud data, they may stop here. Following is an overview on how a DSM and DTM may be created.
