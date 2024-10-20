@@ -237,8 +237,8 @@ def downsample_dem(dem):
         OR
         dem (array): Original 2-D numpy array (if downsampling is not needed)
     """
-    target_shape = tuple(
-        (1000, 1000))   # if either dimension is larger than 1000 pixels, the dem will be downsampled
+    # if either dimension is larger than 1000 pixels, the dem will be downsampled
+    target_shape = tuple((1000, 1000))
     scale_factors = [dim_target / dim_input for dim_target,
                      dim_input in zip(target_shape, dem.shape)]
 
@@ -1082,6 +1082,7 @@ def save_tile_png(high_pass_dsm, zoom, x, y, tile_size=512):
 app = Flask(__name__)
 # Adjust the number of workers as needed
 executor = ThreadPoolExecutor(max_workers=4)
+
 
 
 @app.route('/tiles/<int:zoom>/<int:x>/<int:y>.png')
