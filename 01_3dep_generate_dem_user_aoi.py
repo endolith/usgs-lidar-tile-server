@@ -82,6 +82,7 @@ import pdal
 import pyproj
 import requests
 import rioxarray as rio
+from flask import Flask, send_file
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 from osgeo import gdal
@@ -664,18 +665,18 @@ def tile_to_aoi(zoom, x, y):
 
 
 # Define the tile coordinates
-zoom, x, y = 20, 308688, 386634  # Helmus Crevice
-zoom, x, y = 20, 308688, 386631  # Cave Wall
+# zoom, x, y = 20, 308688, 386634  # Helmus Crevice
+# zoom, x, y = 20, 308688, 386631  # Cave Wall
 
 
 AOI_GCS, AOI_EPSG3857 = tile_to_aoi(zoom, x, y)
 
-# Save the map for visualization (optional)
-m = ipyleaflet.Map(center=((AOI_GCS.bounds[1] + AOI_GCS.bounds[3]) / 2,
-                   (AOI_GCS.bounds[0] + AOI_GCS.bounds[2]) / 2), zoom=zoom)
-geo_json = ipyleaflet.GeoJSON(data=AOI_GCS.__geo_interface__)
-m.add_layer(geo_json)
-m.save('user_defined_aoi.html')
+# # Save the map for visualization (optional)
+# m = ipyleaflet.Map(center=((AOI_GCS.bounds[1] + AOI_GCS.bounds[3]) / 2,
+#                    (AOI_GCS.bounds[0] + AOI_GCS.bounds[2]) / 2), zoom=zoom)
+# geo_json = ipyleaflet.GeoJSON(data=AOI_GCS.__geo_interface__)
+# m.add_layer(geo_json)
+# m.save('user_defined_aoi.html')
 
 
 def get_3dep_data(zoom, x, y):
@@ -950,7 +951,7 @@ def get_3dep_data(zoom, x, y):
     return dsm
 
 
-dsm = get_3dep_data(zoom, x, y)
+# dsm = get_3dep_data(zoom, x, y)
 
 """Now we plot the DTM. By default, we use the 'viridis' colorbar to plot the bare earth elevation. Other colormaps can be used, and more information about available colormaps can be found here: https://matplotlib.org/stable/tutorials/colors/colormaps.html ).
 
@@ -1032,7 +1033,7 @@ def process_dsm(dsm):
     return high_pass_dsm
 
 
-high_pass_dsm = process_dsm(dsm)
+# high_pass_dsm = process_dsm(dsm)
 
 # # Plot the result of High-Pass Filter
 # plt.figure(figsize=(10, 10))
@@ -1071,7 +1072,19 @@ def save_tile_png(high_pass_dsm, zoom, x, y, tile_size=512):
     canvas.print_figure(tile_filename, dpi=100,
                         pad_inches=0, bbox_inches='tight')
     print(f"Tile saved as {tile_filename}")
+    return tile_filename
 
 
-# After generating the high_pass_dsm
-save_tile_png(high_pass_dsm, zoom, x, y)
+app = Flask(__name__)
+
+
+@app.route('/tiles/<int:zoom>/<int:x>/<int:y>.png')
+def serve_tile(zoom, x, y):
+    dsm = get_3dep_data(zoom, x, y)
+    high_pass_dsm = process_dsm(dsm)
+    tile_filename = save_tile_png(high_pass_dsm, zoom, x, y)
+    return send_file(tile_filename, mimetype='image/png')
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
