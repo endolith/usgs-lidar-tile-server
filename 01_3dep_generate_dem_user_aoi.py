@@ -88,7 +88,7 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 from osgeo import gdal
 from rasterio.enums import Resampling
-from scipy.ndimage import gaussian_filter, sobel
+from scipy.ndimage import gaussian_filter
 from shapely.geometry import Point, Polygon, box, shape
 from shapely.ops import transform
 
@@ -1043,21 +1043,6 @@ def process_dsm(dsm):
 # plt.figure(figsize=(10, 10))
 # plt.imshow(high_pass_dsm, cmap='gray')
 # plt.title("High-Pass Filtered DSM")
-# plt.colorbar()
-# plt.axis('equal')
-# plt.show()
-
-# # Compute the gradient of the DSM using Sobel filter for edge detection
-# sobel_x = sobel(dsm_filled, axis=1)  # Gradient along x-axis
-# sobel_y = sobel(dsm_filled, axis=0)  # Gradient along y-axis
-
-# # Compute the magnitude of the gradient (edges)
-# edges = np.hypot(sobel_x, sobel_y)
-
-# # Plot the result of Edge Detection
-# plt.figure(figsize=(10, 10))
-# plt.imshow(edges, cmap='inferno')
-# plt.title("Edge Detection on DSM")
 # plt.colorbar()
 # plt.axis('equal')
 # plt.show()
