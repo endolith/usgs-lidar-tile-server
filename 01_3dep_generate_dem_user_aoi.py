@@ -250,9 +250,10 @@ def downsample_dem(dem):
         return dem
 
 
-def build_pdal_pipeline(extent_epsg3857, usgs_3dep_dataset_names, pc_resolution, filterNoise=False,
-                        reclassify=False, savePointCloud=True, outCRS=3857, pc_outName='filter_test',
-                        pc_outType='laz'):
+def build_pdal_pipeline(extent_epsg3857, usgs_3dep_dataset_names,
+                        pc_resolution, filterNoise=False, reclassify=False,
+                        savePointCloud=True, outCRS=3857,
+                        pc_outName='filter_test', pc_outType='laz'):
     """
     Build pdal pipeline for requesting, processing, and saving point cloud data. Each processing step is a 'stage'
     in the final pdal pipeline. Each stages is appended to the 'pointcloud_pipeline' object to produce the final pipeline.
@@ -438,8 +439,10 @@ def make_DEM_pipeline(extent_epsg3857, usgs_3dep_dataset_name, pc_resolution, de
 
     """
 
-    dem_pipeline = build_pdal_pipeline(extent_epsg3857, usgs_3dep_dataset_name, pc_resolution,
-                                       filterNoise, reclassify, savePointCloud, outCRS, pc_outName, pc_outType)
+    dem_pipeline = build_pdal_pipeline(extent_epsg3857, usgs_3dep_dataset_name,
+                                       pc_resolution, filterNoise, reclassify,
+                                       savePointCloud, outCRS, pc_outName,
+                                       pc_outType)
 
     if demType == 'dsm':
         dem_stage = {
@@ -730,9 +733,10 @@ Paramaters (for more detailed descriptions of parameters, see <a href="#Define-F
 # Change pc_outname to descriptive name and pc_outType to 'las' or 'laz'.
 
 pointcloud_resolution = user_resolution.value
-pc_pipeline = build_pdal_pipeline(AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution, filterNoise=True,
-                                  reclassify=False, savePointCloud=True, outCRS=3857,
-                                  pc_outName='pointcloud_test', pc_outType='laz')
+pc_pipeline = build_pdal_pipeline(
+    AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution,
+    filterNoise=True, reclassify=False, savePointCloud=True, outCRS=3857,
+    pc_outName='pointcloud_test', pc_outType='laz')
 
 """The PDAL pipeline is now constructed. Running the the PDAL Python bindings function ```pdal.Pipeline()``` creates the pdal.Pipeline object from a json-ized version of the pointcloud pipeline we created."""
 
@@ -793,10 +797,12 @@ Do not modify the `AOI_EPSG3857_wkt`, `usgs_3dep_datasets`, or `pointcloud_resol
 
 pointcloud_resolution = user_resolution.value
 dsm_resolution = 0.5
-dsm_pipeline = make_DEM_pipeline(AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution, dsm_resolution,
-                                 filterNoise=True, reclassify=False, savePointCloud=False, outCRS=32613,
-                                 pc_outName='pointcloud_test', pc_outType='laz', demType='dsm',
-                                 gridMethod='min', dem_outName='test_dsm', dem_outExt='tif', driver="GTiff")
+dsm_pipeline = make_DEM_pipeline(
+    AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution,
+    dsm_resolution, filterNoise=True, reclassify=False, savePointCloud=False,
+    outCRS=32613, pc_outName='pointcloud_test', pc_outType='laz',
+    demType='dsm', gridMethod='min', dem_outName='test_dsm', dem_outExt='tif',
+    driver="GTiff")
 
 """The PDAL pipeline is now constructed for making the DSM. Running the the PDAL Python bindings function ```pdal.Pipeline()``` creates the pdal.Pipeline object from a json-ized version of the pointcloud pipeline we created."""
 
