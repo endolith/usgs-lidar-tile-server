@@ -310,13 +310,13 @@ def build_pdal_pipeline(extent_epsg3857, usgs_3dep_dataset_names, pc_resolution,
 
     if filterNoise == True:
 
-        # Filter stage for class 7
+        # Filter stage for class 7 (low noise points)
         filter_stage_class7 = {
             "type": "filters.range",
             "limits": "Classification![7:7]"
         }
 
-        # Filter stage for class 18
+        # Filter stage for class 18 (high noise points)
         filter_stage_class18 = {
             "type": "filters.range",
             "limits": "Classification![18:18]"
@@ -328,6 +328,7 @@ def build_pdal_pipeline(extent_epsg3857, usgs_3dep_dataset_names, pc_resolution,
 
     if reclassify == True:
 
+        # Class 0 = Never classified
         remove_classes_stage = {
             "type": "filters.assign",
             "value": "Classification = 0"
@@ -337,6 +338,7 @@ def build_pdal_pipeline(extent_epsg3857, usgs_3dep_dataset_names, pc_resolution,
             "type": "filters.smrf"
         }
 
+        # Class 2 = Bare earth
         reclass_stage = {
             "type": "filters.range",
             "limits": "Classification[2:2]"
@@ -450,6 +452,7 @@ def make_DEM_pipeline(extent_epsg3857, usgs_3dep_dataset_name, pc_resolution, de
         }
 
     elif demType == 'dtm':
+        # Class 2 = Bare earth
         groundfilter_stage = {
             "type": "filters.range",
             "limits": "Classification[2:2]"
