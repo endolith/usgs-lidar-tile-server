@@ -884,7 +884,7 @@ Using the argument `robust=True` stretches the colors between the 2nd and 98th p
 """
 
 plt.figure(figsize=(10, 10))
-dsm.plot(cmap="viridis", robust=True)
+dsm.plot(cmap="turbo", robust=True)
 plt.title("Digital Surface Model (DSM) in Meters")
 plt.ticklabel_format(style="plain")
 plt.axis('equal')
