@@ -677,285 +677,280 @@ geo_json = ipyleaflet.GeoJSON(data=AOI_GCS.__geo_interface__)
 m.add_layer(geo_json)
 m.save('user_defined_aoi.html')
 
-"""<a name="Find-3DEP-Polygon(s)-Intersecting-AOI"></a>
-### Find 3DEP Polygon(s) Intersecting AOI
-Now that the user-specified AOI is defined, the following cell will determine the intersecting 3DEP dataset names and show the corresponding polygons on an interactive map.  `intersecting_polys` will be a list of the intersecting 3DEP dataset name(s), boundary(ies) in EPSG: 4326, boundary(ies) in EPSG: 3857, url(s), and the number of points in the entire 3DEP dataset(s). The dataset names will be used in the API request to the AWS EPT S3 bucket. A ratio of the total number of points and the area of the user-defined AOI will be used to estimate the total points within the AOI.
-"""
 
-# AOI_GCS = user_AOI[-1][0]
-# AOI_EPSG3857 = user_AOI[-1][1]
+def get_3dep_data(zoom, x, y):
+    AOI_GCS, AOI_EPSG3857 = tile_to_aoi(zoom, x, y)
+    user_AOI = [(AOI_GCS, AOI_EPSG3857)]
 
-intersecting_polys = []
+    intersecting_polys = []
+    for i, geom in enumerate(geometries_EPSG3857):
+        if geom.intersects(AOI_EPSG3857):
+            intersecting_polys.append(
+                (names[i], geometries_GCS[i], geometries_EPSG3857[i], urls[i], num_points[i]))
 
-for i, geom in enumerate(geometries_EPSG3857):
-    if geom.intersects(AOI_EPSG3857):
-        intersecting_polys.append(
-            (names[i], geometries_GCS[i], geometries_EPSG3857[i], urls[i], num_points[i]))
+    # print(intersecting_polys)
 
-print(intersecting_polys)
+    """<a name="Specify-Point-Cloud-Resolution"></a>
+    ### Specify Point Cloud Resolution
+    Executing the next cell will show the AOI, the relevant 3DEP dataset(s) on another interactive map, and the option to specify point cloud resolution.
 
-"""<a name="Specify-Point-Cloud-Resolution"></a>
-### Specify Point Cloud Resolution
-Executing the next cell will show the AOI, the relevant 3DEP dataset(s) on another interactive map, and the option to specify point cloud resolution.
+    Importantly, after the map is rendered, the user must define the desired 'point cloud resolution' using the radio buttons below the map. An estimation of the total number of lidar points within the bounding box is provided based on the area of the AOI and the total number of lidar points in the 3DEP dataset(s). Selecting the "Full" option will return all points in the quad (this number can be quite large, depending on the size of the AOI). Selecting any of the other options for resolution will return the appropriate number of points to ensure at least one lidar point per Nth meter (where N is the chosen resolution). The Entwine Point Tile (EPT) file format utilizes an octree structure for the point cloud, and the chosen resolution defines how deep in the octree to request points to obtain the specified resolution. This depth, and total number points varies drastically based on a number of parameters including local topography and vegetation. Therefore, the 'resolution' paramater and the total point count do not scale linearly. In other words, specifying a resolution of 2m will likely return far less than half of the number of points returned with 'full' resolution. The estimate of the full poin total provided is not exact, but should give the user some idea of how many points to expect the resultant point cloud to contain.
 
-Importantly, after the map is rendered, the user must define the desired 'point cloud resolution' using the radio buttons below the map. An estimation of the total number of lidar points within the bounding box is provided based on the area of the AOI and the total number of lidar points in the 3DEP dataset(s). Selecting the "Full" option will return all points in the quad (this number can be quite large, depending on the size of the AOI). Selecting any of the other options for resolution will return the appropriate number of points to ensure at least one lidar point per Nth meter (where N is the chosen resolution). The Entwine Point Tile (EPT) file format utilizes an octree structure for the point cloud, and the chosen resolution defines how deep in the octree to request points to obtain the specified resolution. This depth, and total number points varies drastically based on a number of parameters including local topography and vegetation. Therefore, the 'resolution' paramater and the total point count do not scale linearly. In other words, specifying a resolution of 2m will likely return far less than half of the number of points returned with 'full' resolution. The estimate of the full poin total provided is not exact, but should give the user some idea of how many points to expect the resultant point cloud to contain.
+    Select the appropriate radio button below the map to specify `pointcloud_resolution`.
+    """
 
-Select the appropriate radio button below the map to specify `pointcloud_resolution`.
-"""
+    # Find AOI center for plotting purposes
+    centroid = list(AOI_GCS.centroid.coords)[0]
 
-# Find AOI center for plotting purposes
-centroid = list(AOI_GCS.centroid.coords)[0]
+    # make ipyleaflet map
+    m = ipyleaflet.Map(
+        basemap=ipyleaflet.basemaps.Esri.WorldTopoMap,
+        center=(centroid[1], centroid[0]),
+        zoom=12,
+    )
 
-# make ipyleaflet map
-m = ipyleaflet.Map(
-    basemap=ipyleaflet.basemaps.Esri.WorldTopoMap,
-    center=(centroid[1], centroid[0]),
-    zoom=12,
-)
+    # add intersecting 3DEP polygon(s) to the map
+    wlayer_3DEP_list = []
+    usgs_3dep_datasets = []
+    number_pts_est = []
+    for i, poly in enumerate(intersecting_polys):
+        wlayer_3DEP = ipyleaflet.WKTLayer(
+            wkt_string=poly[1].wkt,
+            style={"color": "green"})
 
-# add intersecting 3DEP polygon(s) to the map
-wlayer_3DEP_list = []
-usgs_3dep_datasets = []
-number_pts_est = []
-for i, poly in enumerate(intersecting_polys):
-    wlayer_3DEP = ipyleaflet.WKTLayer(
-        wkt_string=poly[1].wkt,
-        style={"color": "green"})
+        m.add_layer(wlayer_3DEP)
+        wlayer_3DEP_list.append(wlayer_3DEP)
+        usgs_3dep_datasets.append(poly[0])
 
-    m.add_layer(wlayer_3DEP)
-    wlayer_3DEP_list.append(wlayer_3DEP)
-    usgs_3dep_datasets.append(poly[0])
+        # estimate total points using ratio of area and point count
+        number_pts_est.append(
+            (int((AOI_EPSG3857.area/poly[2].area)*(poly[4]))))
 
-    # estimate total points using ratio of area and point count
-    number_pts_est.append((int((AOI_EPSG3857.area/poly[2].area)*(poly[4]))))
+    # make ipyleaflet layers from the AOI and add to map
+    wlayer_user = ipyleaflet.WKTLayer(
+        wkt_string=AOI_GCS.boundary.wkt,
+        style={"color": "blue"}
+    )
+
+    AOI_EPSG3857_wkt = AOI_EPSG3857.wkt
+    m.add_layer(wlayer_user)
+
+    # sum the estimates of the number of points from each 3DEP dataset within the AOI
+    num_pts_est = sum(number_pts_est)
+
+    # Plot map and specify desired point cloud resolution using a widget
+    pointcloud_resolution = 1.0  # This corresponds to the 'Full' resolution option
+
+    print('Using full resolution with approximately '
+          f'{int(math.ceil(num_pts_est/1e6)*1e6):,} points.')
+
+    # Define user_resolution to maintain compatibility with the rest of the script
+
+    class UserResolution:
+        def __init__(self, value):
+            self.value = value
+
+    user_resolution = UserResolution(pointcloud_resolution)
+
+    """<font color='red'>**Note**: Lidar point clouds can get *very* large, *very* fast, and the point counts provided above are an estimate. Selecting the `Full` or `High` option when using Google Colaboratory (12GB RAM allocation) may cause the runtime to fail when attempting to access data exceeding ~50-100 million points. If full resolution is desired, we recommend running this notebook locally on hardware with more RAM. Keep this in mind when deciding the AOI size and point cloud resolution above!</font>
+
+    The AOI bounding box, the relevant 3DEP dataset name(s), and the desired point cloud resolution are now defined. We can proceed with the API request to the AWS EPT bucket, processing, visualizing, and saving the data.
+
+    <a name="Construct-and-Exectute-PDAL-Pipeline-for-Point-Cloud-Data"></a>
+    ### Construct and Exectute PDAL Pipeline for Point Cloud Data
+    The Point Data Abstraction Library (PDAL) is an open-source tool for translating and manipulating point cloud data. PDAL pipelines are useful ways of processing and manipulating point cloud data and creating derivative products. Pipelines comprise one or more stages that are read and executed in order on the point cloud dataset(s).
+
+    The PDAL pipeline is constructed using the ```build_pdal_pipeline()``` function, and will construct the appropriate pipeline for the user's specifications (defined as function arguments). Executing this pipeline will make the API request, perform processing on the point cloud data (chosen by user) and provide the final result on the user's file system of Google Drive (Google Colab).
+
+    Paramaters (for more detailed descriptions of parameters, see <a href="#Define-Functions" data-toc-modified-id="Define-Functions-6.3">the function definitions</a>, above: <br>
+    ```AOI_EPSG3857_wkt```: the user-defined area of interest (AOI)<br>
+    ```usgs_3dep_datasets```: the intersecting 3DEP dataset names<br>
+    ```pointcloud_resolution```: point cloud resolution (1m, 2m, 5m, 10m)<br>
+    ```filterNoise```: remove the points of Class 7 (low noise) and Class 18 (high noise);<br>
+    ```reclassify```: remove USGS classes and run an SMRF to classify ground points only<br>
+    ```savePointCloud```: specify if point cloud data should be saved to local file system<br>
+    ```outCRS```: specify the coordinate reference system (CRS, in EPSG) of the output dataset.<br>
+    ```pc_outName```: name of point cloud on local file system<br>
+    ```pc_outType```: file type, las or laz (laszip compression). Options are 'las' or 'laz'<br>
+
+    **Important Note 1: The ```AOI_EPSG3857_wkt```, ```usgs_3dep_datasets```, and ```pointcloud_resolution``` arguments are already defined. These should not be modified.**
+    """
+
+    # Do not modify AOI_EPSG3857_wkt, usgs_3dep_datasets, or pointcloud_resolution
+    # Modify the optional arguments to fit user need.
+    # Change outCRS to EPSG code of desired coordinate reference system (Default is EPSG:3857 - Web Mercator Projection)
+    # Change pc_outname to descriptive name and pc_outType to 'las' or 'laz'.
+
+    def get_unique_filename(aoi, resolution):
+        # Create a unique filename based on AOI bounds and resolution
+        bounds = aoi.bounds
+        return f"pointcloud_{bounds[0]}_{bounds[1]}_{bounds[2]}_{bounds[3]}_{resolution}.laz"
+
+    pointcloud_resolution = user_resolution.value
+    unique_filename = get_unique_filename(AOI_EPSG3857, pointcloud_resolution)
+
+    if os.path.exists(unique_filename):
+        print(f"Using existing point cloud data: {unique_filename}")
+        pc_pipeline = {
+            "pipeline": [
+                {
+                    "type": "readers.las",
+                    "filename": unique_filename
+                }
+            ]
+        }
+    else:
+        print(
+            f"Fetching point cloud data from AWS and saving as: {unique_filename}")
+        pc_pipeline = build_pdal_pipeline(
+            AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution,
+            filterNoise=True, reclassify=False, savePointCloud=True, outCRS=3857,
+            pc_outName=unique_filename[:-4], pc_outType='laz')
+
+    """The PDAL pipeline is now constructed. Running the the PDAL Python bindings function ```pdal.Pipeline()``` creates the pdal.Pipeline object from a json-ized version of the pointcloud pipeline we created."""
+
+    pc_pipeline = pdal.Pipeline(json.dumps(pc_pipeline))
+
+    """The cell below will execute the pc_pipeline object, which will make the API request, performing processing, and save the point cloud (if `savePointCloud == True`) at the specified location, name, and extension.
+
+    Executing the pipeline in streaming mode will speed up the process and cuts down on the required RAM. The `%%time` magic command will return the total computation time. The final output is the total number of points returned.
+
+    **Note**: If `reclassify == True` in the pipeline constructed above, a step is added for removing assigned USGS classifications and running a SMRF filter to classify ground points only. When `reclassify == True`, the PDAL pipeline cannot be executed in streaming mode, as reclassification requires all points to be present in memory. **<font color='red'>Be aware that this will be slower than executing in streaming mode and may not be possible for very large point clouds due to RAM limitations.</font>** Commands for executing the pipeline in streaming and non-streaming mode are included below. Comment/uncomment the appropriate command below (depending on whether `reclassify == True` or `reclassify == False` in the pipeline constructed above).
+    """
+
+    # Commented out IPython magic to ensure Python compatibility.
+    # %%time
+    # use this if reclassify == False
+    if not os.path.exists(unique_filename):
+        pc_pipeline.execute_streaming(chunk_size=1000000)
+    # pc_pipeline.execute() # use this if reclassify == True
+
+    """If the user only desires point cloud data, they may stop here. Following is an overview on how a DSM and DTM may be created.
+
+    <a name="Digital-Elevation-Model-(DEM)-Generation"></a>
+    ### Digital Elevation Model (DEM) Generation
+    The following cells may be run to produce a DSM and DTM of the user-defined AOI. The DTM is produced using only points classified as 'Ground' (USGS Class 2), and therefore, represents the surface of the ground beneath any vegetation. Alternatively, a DSM uses all points to produce a representation of the surface including vegetation and other structures.
+
+    The DTM/DSM is produced using an analogous approach to point cloud request and processsing. Namely, a PDAL pipeline is constructed using the function `make_DEM_pipeline()`. This function first constructs a pipeline using `build_pdal_pipeline()` to create stages related to point cloud access and processing. The function then appends PDAL stages specific to the creation of gridded products that fit the specification of the user (defined as function arguments), namely dem resolution and dem type.
+
+    Paramaters (for more detailed descriptions of parameters, see <a href="#Define-Functions" data-toc-modified-id="Define-Functions-6.3">the function definitions</a>, above:<br>
+    `AOI_EPSG3857_wkt`: the user-defined area of interest (AOI)<br>
+    `usgs_3dep_dataset`: the corresponding 3DEP dataset name<br>
+    `pointcloud_resolution`: point cloud resolution (1m, 2m, 5m, 10m)<br>
+    `dem_generation`: grid size for dem product (specified in meters)<br>
+    `filterNoise`: remove the points of Class 7 (noise); optional<br>
+    `reclassify`: remove USGS classes and run an SMRF to classify ground points only<br>
+    `savePointCloud`: specify if point cloud data should be saved to local file system<br>
+    `pc_outName`: name of point cloud on local file system<br>
+    `pc_outType`: file type, las or laz (laszip compression). Options are 'las' or 'laz'<br>
+    `demType`: specifies to create digital surface model (DSM) or digital terrain model (DTM)<br>
+    `gridMethod`: gridding method to use; options: (min, mean, max, idw)<br>
+    `dem_outName`: name of dem on local file system <br>
+    `dem_outExt`: extension of file on local file system (must correspond to what is chosen for ```driver```<br>
+    `driver`: gdal code of the driver (default is "GTiff"; other options can be found at https://gdal.org/drivers/raster/index.html<br>
 
 
-# make ipyleaflet layers from the AOI and add to map
-wlayer_user = ipyleaflet.WKTLayer(
-    wkt_string=AOI_GCS.boundary.wkt,
-    style={"color": "blue"}
-)
+    **Important note 1: The `make_DEM_pipeline()` function is used for the making of both DSM and DTM products. The type of DEM (DSM/DTM) is specified in the `demType` argument (e.g., `demType = 'dsm'`)**
 
-AOI_EPSG3857_wkt = AOI_EPSG3857.wkt
-m.add_layer(wlayer_user)
+    **Important Note 2: The `AOI_EPSG3857_wkt`, `usgs_3dep_datasets`, and `pointcloud_resolution` arguments are already defined after running the above cells. These should not be modified.**
 
+    <a name="Make-Digital-Surface-Model-(DSM)"></a>
+    ### Make Digital Surface Model (DSM)
+    The following cells will produce a Digital Surface Model (DSM) using all of the lidar returns in the point cloud.
+    Do not modify the `AOI_EPSG3857_wkt`, `usgs_3dep_datasets`, or `pointcloud_resolution` arguments. Specify the desired dsm resolution (in meters), the appropriate point cloud processing steps, and the file names/extensions.
+    """
 
-# sum the estimates of the number of points from each 3DEP dataset within the AOI
-num_pts_est = sum(number_pts_est)
+    # Do not modify AOI_EPSG3857_wkt, usgs_3dep_datasets, or pointcloud_resolution
+    # Modify the optional arguments to fit user need.
+    # Change outCRS to EPSG code of desired coordinate reference system (Default is EPSG:3857 - Web Mercator Projection)
+    # Change dem_outName to descriptive name; dem_outExt can be any extension supported by gdal.
 
-# Plot map and specify desired point cloud resolution using a widget
-pointcloud_resolution = 1.0  # This corresponds to the 'Full' resolution option
-
-print('Using full resolution with approximately '
-      f'{int(math.ceil(num_pts_est/1e6)*1e6):,} points.')
-
-# Define user_resolution to maintain compatibility with the rest of the script
-
-
-class UserResolution:
-    def __init__(self, value):
-        self.value = value
-
-
-user_resolution = UserResolution(pointcloud_resolution)
-
-"""<font color='red'>**Note**: Lidar point clouds can get *very* large, *very* fast, and the point counts provided above are an estimate. Selecting the `Full` or `High` option when using Google Colaboratory (12GB RAM allocation) may cause the runtime to fail when attempting to access data exceeding ~50-100 million points. If full resolution is desired, we recommend running this notebook locally on hardware with more RAM. Keep this in mind when deciding the AOI size and point cloud resolution above!</font>
-
-The AOI bounding box, the relevant 3DEP dataset name(s), and the desired point cloud resolution are now defined. We can proceed with the API request to the AWS EPT bucket, processing, visualizing, and saving the data.
-
-<a name="Construct-and-Exectute-PDAL-Pipeline-for-Point-Cloud-Data"></a>
-### Construct and Exectute PDAL Pipeline for Point Cloud Data
-The Point Data Abstraction Library (PDAL) is an open-source tool for translating and manipulating point cloud data. PDAL pipelines are useful ways of processing and manipulating point cloud data and creating derivative products. Pipelines comprise one or more stages that are read and executed in order on the point cloud dataset(s).
-
-The PDAL pipeline is constructed using the ```build_pdal_pipeline()``` function, and will construct the appropriate pipeline for the user's specifications (defined as function arguments). Executing this pipeline will make the API request, perform processing on the point cloud data (chosen by user) and provide the final result on the user's file system of Google Drive (Google Colab).
-
-Paramaters (for more detailed descriptions of parameters, see <a href="#Define-Functions" data-toc-modified-id="Define-Functions-6.3">the function definitions</a>, above: <br>
-```AOI_EPSG3857_wkt```: the user-defined area of interest (AOI)<br>
-```usgs_3dep_datasets```: the intersecting 3DEP dataset names<br>
-```pointcloud_resolution```: point cloud resolution (1m, 2m, 5m, 10m)<br>
-```filterNoise```: remove the points of Class 7 (low noise) and Class 18 (high noise);<br>
-```reclassify```: remove USGS classes and run an SMRF to classify ground points only<br>
-```savePointCloud```: specify if point cloud data should be saved to local file system<br>
-```outCRS```: specify the coordinate reference system (CRS, in EPSG) of the output dataset.<br>
-```pc_outName```: name of point cloud on local file system<br>
-```pc_outType```: file type, las or laz (laszip compression). Options are 'las' or 'laz'<br>
-
-**Important Note 1: The ```AOI_EPSG3857_wkt```, ```usgs_3dep_datasets```, and ```pointcloud_resolution``` arguments are already defined. These should not be modified.**
-"""
-
-# Do not modify AOI_EPSG3857_wkt, usgs_3dep_datasets, or pointcloud_resolution
-# Modify the optional arguments to fit user need.
-# Change outCRS to EPSG code of desired coordinate reference system (Default is EPSG:3857 - Web Mercator Projection)
-# Change pc_outname to descriptive name and pc_outType to 'las' or 'laz'.
-
-
-def get_unique_filename(aoi, resolution):
-    # Create a unique filename based on AOI bounds and resolution
-    bounds = aoi.bounds
-    return f"pointcloud_{bounds[0]}_{bounds[1]}_{bounds[2]}_{bounds[3]}_{resolution}.laz"
-
-
-pointcloud_resolution = user_resolution.value
-unique_filename = get_unique_filename(AOI_EPSG3857, pointcloud_resolution)
-
-if os.path.exists(unique_filename):
-    print(f"Using existing point cloud data: {unique_filename}")
-    pc_pipeline = {
-        "pipeline": [
-            {
-                "type": "readers.las",
-                "filename": unique_filename
-            }
-        ]
-    }
-else:
-    print(
-        f"Fetching point cloud data from AWS and saving as: {unique_filename}")
-    pc_pipeline = build_pdal_pipeline(
+    pointcloud_resolution = user_resolution.value
+    dsm_resolution = 0.65
+    dsm_pipeline = make_DEM_pipeline(
         AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution,
-        filterNoise=True, reclassify=False, savePointCloud=True, outCRS=3857,
-        pc_outName=unique_filename[:-4], pc_outType='laz')
+        dsm_resolution, filterNoise=True, reclassify=False, savePointCloud=False,
+        outCRS=3857, pc_outName='pointcloud_test', pc_outType='laz',
+        demType='dsm', gridMethod='min', dem_outName='test_dsm', dem_outExt='tif',
+        driver="GTiff")
 
-"""The PDAL pipeline is now constructed. Running the the PDAL Python bindings function ```pdal.Pipeline()``` creates the pdal.Pipeline object from a json-ized version of the pointcloud pipeline we created."""
+    """The PDAL pipeline is now constructed for making the DSM. Running the the PDAL Python bindings function ```pdal.Pipeline()``` creates the pdal.Pipeline object from a json-ized version of the pointcloud pipeline we created."""
 
-pc_pipeline = pdal.Pipeline(json.dumps(pc_pipeline))
+    dsm_pipeline = pdal.Pipeline(json.dumps(dsm_pipeline))
 
-"""The cell below will execute the pc_pipeline object, which will make the API request, performing processing, and save the point cloud (if `savePointCloud == True`) at the specified location, name, and extension.
+    """The cell below will execute the dsm_pipeline object, which will make the API request, performing processing, and save the point cloud (if `savePointCloud == True`) and create and save the DSM at the specified location, name, and extension.
 
-Executing the pipeline in streaming mode will speed up the process and cuts down on the required RAM. The `%%time` magic command will return the total computation time. The final output is the total number of points returned.
+    Executing the pipeline in streaming mode will speed up the process and cuts down on the required RAM. The `%%time` magic command will return the total computation time. The final output is the total number of points returned.
 
-**Note**: If `reclassify == True` in the pipeline constructed above, a step is added for removing assigned USGS classifications and running a SMRF filter to classify ground points only. When `reclassify == True`, the PDAL pipeline cannot be executed in streaming mode, as reclassification requires all points to be present in memory. **<font color='red'>Be aware that this will be slower than executing in streaming mode and may not be possible for very large point clouds due to RAM limitations.</font>** Commands for executing the pipeline in streaming and non-streaming mode are included below. Comment/uncomment the appropriate command below (depending on whether `reclassify == True` or `reclassify == False` in the pipeline constructed above).
-"""
+    **Note**: If `reclassify == True` in the pipeline constructed above, a step is added for removing assigned USGS classifications and running a SMRF filter to classify ground points only. When `reclassify == True`, the PDAL pipeline cannot be executed in streaming mode, as reclassification requires all points to be present in memory. **<font color='red'>Be aware that this will be slower than executing in streaming mode and may not be possible for very large point clouds due to RAM limitations.</font>** Commands for executing the pipeline in streaming and non-streaming mode are included below. Comment/uncomment the appropriate command below (depending on whether `reclassify == True` or `reclassify == False` in the pipeline constructed above).
+    """
 
-# Commented out IPython magic to ensure Python compatibility.
-# %%time
-# use this if reclassify == False
-if not os.path.exists(unique_filename):
-    pc_pipeline.execute_streaming(chunk_size=1000000)
-# pc_pipeline.execute() # use this if reclassify == True
+    # Commented out IPython magic to ensure Python compatibility.
+    # %%time
+    # use this if reclassify == False
+    dsm_pipeline.execute_streaming(chunk_size=1000000)
+    # dsm_pipeline.execute() # use this if reclassify == True
 
-"""If the user only desires point cloud data, they may stop here. Following is an overview on how a DSM and DTM may be created.
+    """Below, the same process is outlined for the making of at DTM.
 
-<a name="Digital-Elevation-Model-(DEM)-Generation"></a>
-### Digital Elevation Model (DEM) Generation
-The following cells may be run to produce a DSM and DTM of the user-defined AOI. The DTM is produced using only points classified as 'Ground' (USGS Class 2), and therefore, represents the surface of the ground beneath any vegetation. Alternatively, a DSM uses all points to produce a representation of the surface including vegetation and other structures.
+    <a name="Make-Digital-Terrain-Model-(DTM)"></a>
+    ### Make Digital Terrain Model (DTM)
 
-The DTM/DSM is produced using an analogous approach to point cloud request and processsing. Namely, a PDAL pipeline is constructed using the function `make_DEM_pipeline()`. This function first constructs a pipeline using `build_pdal_pipeline()` to create stages related to point cloud access and processing. The function then appends PDAL stages specific to the creation of gridded products that fit the specification of the user (defined as function arguments), namely dem resolution and dem type.
+    The following cells will produce a Digital Terrain Model (DTM), also
+    called a 'bare earth model' using lidar returns classified as 'ground' (USGS
+    Class 2). Do not modify the `AOI_EPSG3857_wkt`, `usgs_3dep_datasets`, or
+    `pointcloud_resolution` arguments. Specify the desired dtm resolution (in
+    meters), the appropriate point cloud processing steps, and the file
+    names/extensions.
+    """
 
-Paramaters (for more detailed descriptions of parameters, see <a href="#Define-Functions" data-toc-modified-id="Define-Functions-6.3">the function definitions</a>, above:<br>
-`AOI_EPSG3857_wkt`: the user-defined area of interest (AOI)<br>
-`usgs_3dep_dataset`: the corresponding 3DEP dataset name<br>
-`pointcloud_resolution`: point cloud resolution (1m, 2m, 5m, 10m)<br>
-`dem_generation`: grid size for dem product (specified in meters)<br>
-`filterNoise`: remove the points of Class 7 (noise); optional<br>
-`reclassify`: remove USGS classes and run an SMRF to classify ground points only<br>
-`savePointCloud`: specify if point cloud data should be saved to local file system<br>
-`pc_outName`: name of point cloud on local file system<br>
-`pc_outType`: file type, las or laz (laszip compression). Options are 'las' or 'laz'<br>
-`demType`: specifies to create digital surface model (DSM) or digital terrain model (DTM)<br>
-`gridMethod`: gridding method to use; options: (min, mean, max, idw)<br>
-`dem_outName`: name of dem on local file system <br>
-`dem_outExt`: extension of file on local file system (must correspond to what is chosen for ```driver```<br>
-`driver`: gdal code of the driver (default is "GTiff"; other options can be found at https://gdal.org/drivers/raster/index.html<br>
+    # Do not modify AOI_EPSG3857_wkt, usgs_3dep_datasets, or pointcloud_resolution
+    # Modify the optional arguments to fit user need.
+    # Change outCRS to EPSG code of desired coordinate reference system (Default is EPSG:3857 - Web Mercator Projection)
+    # Change dem_outname to descriptive name and change dem_outExt and driver to desired file type.
 
+    # pointcloud_resolution = user_resolution.value
+    # dtm_resolution = 0.5
+    # dtm_pipeline = make_DEM_pipeline(AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution, dtm_resolution,
+    #                                  filterNoise=True, reclassify=False, savePointCloud=False, outCRS=3857,
+    #                                  pc_outName='pointcloud_test', pc_outType='laz', demType='dtm',
+    #                                  gridMethod='idw', dem_outName='test_dtm', dem_outExt='tif', driver="GTiff")
 
-**Important note 1: The `make_DEM_pipeline()` function is used for the making of both DSM and DTM products. The type of DEM (DSM/DTM) is specified in the `demType` argument (e.g., `demType = 'dsm'`)**
+    """The PDAL pipeline is now constructed for making the DTM. Running the the PDAL Python bindings function ```pdal.Pipeline()``` creates the pdal.Pipeline object from a json-ized version of the pointcloud pipeline we created."""
 
-**Important Note 2: The `AOI_EPSG3857_wkt`, `usgs_3dep_datasets`, and `pointcloud_resolution` arguments are already defined after running the above cells. These should not be modified.**
+    # dtm_pipeline = pdal.Pipeline(json.dumps(dtm_pipeline))
 
-<a name="Make-Digital-Surface-Model-(DSM)"></a>
-### Make Digital Surface Model (DSM)
-The following cells will produce a Digital Surface Model (DSM) using all of the lidar returns in the point cloud.
-Do not modify the `AOI_EPSG3857_wkt`, `usgs_3dep_datasets`, or `pointcloud_resolution` arguments. Specify the desired dsm resolution (in meters), the appropriate point cloud processing steps, and the file names/extensions.
-"""
+    """The cell below will execute the dtm_pipeline object, which will make the API request, performing processing, and save the point cloud (if `savePointCloud == True`) and create and save the DTM at the specified location, name, and extension.
 
-# Do not modify AOI_EPSG3857_wkt, usgs_3dep_datasets, or pointcloud_resolution
-# Modify the optional arguments to fit user need.
-# Change outCRS to EPSG code of desired coordinate reference system (Default is EPSG:3857 - Web Mercator Projection)
-# Change dem_outName to descriptive name; dem_outExt can be any extension supported by gdal.
+    Executing the pipeline in streaming mode will speed up the process and cuts down on the required RAM. The `%%time` magic command will return the total computation time. The final output is the total number of points returned.
 
-pointcloud_resolution = user_resolution.value
-dsm_resolution = 0.65
-dsm_pipeline = make_DEM_pipeline(
-    AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution,
-    dsm_resolution, filterNoise=True, reclassify=False, savePointCloud=False,
-    outCRS=3857, pc_outName='pointcloud_test', pc_outType='laz',
-    demType='dsm', gridMethod='min', dem_outName='test_dsm', dem_outExt='tif',
-    driver="GTiff")
+    **Note**: If `reclassify == True` in the pipeline constructed above, a step is added for removing assigned USGS classifications and running a SMRF filter to classify ground points only. When `reclassify == True`, the PDAL pipeline cannot be executed in streaming mode, as reclassification requires all points to be present in memory. **<font color='red'>Be aware that this will be slower than executing in streaming mode and may not be possible for very large point clouds due to RAM limitations.</font>** Commands for executing the pipeline in streaming and non-streaming mode are included below. Comment/uncomment the appropriate command below (depending on whether `reclassify == True` or `reclassify == False` in the pipeline constructed above).
+    """
 
-"""The PDAL pipeline is now constructed for making the DSM. Running the the PDAL Python bindings function ```pdal.Pipeline()``` creates the pdal.Pipeline object from a json-ized version of the pointcloud pipeline we created."""
+    # Commented out IPython magic to ensure Python compatibility.
+    # %%time
+    # use this if reclassify == False
+    # dtm_pipeline.execute_streaming(chunk_size=1000000)
+    # dtm_pipeline.execute() # use this if reclassify == True
 
-dsm_pipeline = pdal.Pipeline(json.dumps(dsm_pipeline))
+    """<a name="Visualize-DEMs-(DSM/DTM)"></a>
+    ## Visualize the DEM (DSM/DTM)
+    We can now visualize the DSM or DTM products in the Jupyter Notebook. We use the <a href="https://corteva.github.io/rioxarray/stable/"> rioxarray </a> and <a href="https://matplotlib.org/stable/users/index.html"> matplotlib </a> Python libraries for simple plotting. We import `rioxarray` and `matplotlib.pyplot` here.
+    """
 
-"""The cell below will execute the dsm_pipeline object, which will make the API request, performing processing, and save the point cloud (if `savePointCloud == True`) and create and save the DSM at the specified location, name, and extension.
+    """Now we must define the file name we would like to plot. This could be a file path (e.g., `/path/to/my/dtm/dtm.tif`). Then we open the dtm as an `xarray` object."""
 
-Executing the pipeline in streaming mode will speed up the process and cuts down on the required RAM. The `%%time` magic command will return the total computation time. The final output is the total number of points returned.
+    dsm_name = 'test_dsm.tif'  # /path/to/your/dtm/dtm.tif
+    dsm = rio.open_rasterio(dsm_name, masked=True).squeeze()
 
-**Note**: If `reclassify == True` in the pipeline constructed above, a step is added for removing assigned USGS classifications and running a SMRF filter to classify ground points only. When `reclassify == True`, the PDAL pipeline cannot be executed in streaming mode, as reclassification requires all points to be present in memory. **<font color='red'>Be aware that this will be slower than executing in streaming mode and may not be possible for very large point clouds due to RAM limitations.</font>** Commands for executing the pipeline in streaming and non-streaming mode are included below. Comment/uncomment the appropriate command below (depending on whether `reclassify == True` or `reclassify == False` in the pipeline constructed above).
-"""
+    """DEMs can be very large and require significant RAM to plot. Here, we apply a downsampling technique for more efficient visualization."""
 
-# Commented out IPython magic to ensure Python compatibility.
-# %%time
-# use this if reclassify == False
-dsm_pipeline.execute_streaming(chunk_size=1000000)
-# dsm_pipeline.execute() # use this if reclassify == True
+    dsm = downsample_dem(dsm)
 
-"""Below, the same process is outlined for the making of at DTM.
-
-<a name="Make-Digital-Terrain-Model-(DTM)"></a>
-### Make Digital Terrain Model (DTM)
-
-The following cells will produce a Digital Terrain Model (DTM), also
-called a 'bare earth model' using lidar returns classified as 'ground' (USGS
-Class 2). Do not modify the `AOI_EPSG3857_wkt`, `usgs_3dep_datasets`, or
-`pointcloud_resolution` arguments. Specify the desired dtm resolution (in
-meters), the appropriate point cloud processing steps, and the file
-names/extensions.
-"""
-
-# Do not modify AOI_EPSG3857_wkt, usgs_3dep_datasets, or pointcloud_resolution
-# Modify the optional arguments to fit user need.
-# Change outCRS to EPSG code of desired coordinate reference system (Default is EPSG:3857 - Web Mercator Projection)
-# Change dem_outname to descriptive name and change dem_outExt and driver to desired file type.
-
-# pointcloud_resolution = user_resolution.value
-# dtm_resolution = 0.5
-# dtm_pipeline = make_DEM_pipeline(AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution, dtm_resolution,
-#                                  filterNoise=True, reclassify=False, savePointCloud=False, outCRS=3857,
-#                                  pc_outName='pointcloud_test', pc_outType='laz', demType='dtm',
-#                                  gridMethod='idw', dem_outName='test_dtm', dem_outExt='tif', driver="GTiff")
-
-"""The PDAL pipeline is now constructed for making the DTM. Running the the PDAL Python bindings function ```pdal.Pipeline()``` creates the pdal.Pipeline object from a json-ized version of the pointcloud pipeline we created."""
-
-# dtm_pipeline = pdal.Pipeline(json.dumps(dtm_pipeline))
-
-"""The cell below will execute the dtm_pipeline object, which will make the API request, performing processing, and save the point cloud (if `savePointCloud == True`) and create and save the DTM at the specified location, name, and extension.
-
-Executing the pipeline in streaming mode will speed up the process and cuts down on the required RAM. The `%%time` magic command will return the total computation time. The final output is the total number of points returned.
-
-**Note**: If `reclassify == True` in the pipeline constructed above, a step is added for removing assigned USGS classifications and running a SMRF filter to classify ground points only. When `reclassify == True`, the PDAL pipeline cannot be executed in streaming mode, as reclassification requires all points to be present in memory. **<font color='red'>Be aware that this will be slower than executing in streaming mode and may not be possible for very large point clouds due to RAM limitations.</font>** Commands for executing the pipeline in streaming and non-streaming mode are included below. Comment/uncomment the appropriate command below (depending on whether `reclassify == True` or `reclassify == False` in the pipeline constructed above).
-"""
-
-# Commented out IPython magic to ensure Python compatibility.
-# %%time
-# use this if reclassify == False
-# dtm_pipeline.execute_streaming(chunk_size=1000000)
-# dtm_pipeline.execute() # use this if reclassify == True
-
-"""<a name="Visualize-DEMs-(DSM/DTM)"></a>
-## Visualize the DEM (DSM/DTM)
-We can now visualize the DSM or DTM products in the Jupyter Notebook. We use the <a href="https://corteva.github.io/rioxarray/stable/"> rioxarray </a> and <a href="https://matplotlib.org/stable/users/index.html"> matplotlib </a> Python libraries for simple plotting. We import `rioxarray` and `matplotlib.pyplot` here.
-"""
+    return dsm
 
 
-"""Now we must define the file name we would like to plot. This could be a file path (e.g., `/path/to/my/dtm/dtm.tif`). Then we open the dtm as an `xarray` object."""
-
-dsm_name = 'test_dsm.tif'  # /path/to/your/dtm/dtm.tif
-dsm = rio.open_rasterio(dsm_name, masked=True).squeeze()
-
-"""DEMs can be very large and require significant RAM to plot. Here, we apply a downsampling technique for more efficient visualization."""
-
-dsm = downsample_dem(dsm)
+dsm = get_3dep_data(zoom, x, y)
 
 """Now we plot the DTM. By default, we use the 'viridis' colorbar to plot the bare earth elevation. Other colormaps can be used, and more information about available colormaps can be found here: https://matplotlib.org/stable/tutorials/colors/colormaps.html ).
 
