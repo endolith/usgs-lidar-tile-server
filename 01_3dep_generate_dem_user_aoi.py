@@ -793,7 +793,13 @@ dsm_pipeline.execute_streaming(chunk_size=1000000)
 
 <a name="Make-Digital-Terrain-Model-(DTM)"></a>
 ### Make Digital Terrain Model (DTM)
-The following cells will produce a Digital Terrain Model (DTM), also called a 'bare earth model' using lidar returns classified as 'ground' (USGS Class 2). Do not modify the `AOI_EPSG3857_wkt`, `usgs_3dep_datasets`, or `pointcloud_resolution` arguments. Specify the desired dtm resolution (in meters), the appropriate point cloud processing steps, and the file names/extensions.
+
+The following cells will produce a Digital Terrain Model (DTM), also
+called a 'bare earth model' using lidar returns classified as 'ground' (USGS
+Class 2). Do not modify the `AOI_EPSG3857_wkt`, `usgs_3dep_datasets`, or
+`pointcloud_resolution` arguments. Specify the desired dtm resolution (in
+meters), the appropriate point cloud processing steps, and the file
+names/extensions.
 """
 
 # Do not modify AOI_EPSG3857_wkt, usgs_3dep_datasets, or pointcloud_resolution
