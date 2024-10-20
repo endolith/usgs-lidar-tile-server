@@ -914,9 +914,9 @@ plt.axis('equal')
 
 """Pretty cool, right? But what if we would like to look at a statistical distribution of the elevation in this region? We can plot a simple histogram, as shown below."""
 
-plt.figure(figsize=(10, 10))
-dsm.plot.hist(bins=100)
-plt.title("Distribution of Elevation in Meters")
+# plt.figure(figsize=(10, 10))
+# dsm.plot.hist(bins=100)
+# plt.title("Distribution of Elevation in Meters")
 
 """<a name="Conclusion"></a>
 ## Conclusion
