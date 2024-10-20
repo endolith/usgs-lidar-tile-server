@@ -599,8 +599,7 @@ AOI_EPSG3857 = gcs_to_proj(AOI_GCS)
 
 user_AOI = [(AOI_GCS, AOI_EPSG3857)]
 
-print(
-    f'AOI is valid and has boundaries of {AOI_EPSG3857.bounds}. Please proceed to the next cell.')
+print(f'AOI is valid and has boundaries of\n{AOI_EPSG3857.bounds}.')
 
 # Save the map for visualization (optional)
 m = ipyleaflet.Map(center=((sw_lat + ne_lat) / 2,
