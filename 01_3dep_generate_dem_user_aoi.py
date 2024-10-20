@@ -70,6 +70,7 @@ For ease-of-use, it is suggested to launch and execute these notebooks on <a hre
 import json
 import math
 import os
+import pickle
 
 import geopandas as gpd
 import ipyleaflet
@@ -493,35 +494,48 @@ In the following cell, we use an API request to get the boundaries from the repo
 
 print("Requesting, loading, and projecting 3DEP dataset polygons...")
 
-# Check if the file already exists
-if not os.path.exists('resources.geojson'):
-    # request the boundaries from the Github repo and save locally.
-    url = 'https://raw.githubusercontent.com/hobuinc/usgs-lidar/master/boundaries/resources.geojson'
-    r = requests.get(url)
-    with open('resources.geojson', 'w') as f:
-        f.write(r.content.decode("utf-8"))
+CACHE_FILE = '3dep_dataset_cache.pkl'
+if os.path.exists(CACHE_FILE):
+    print("Loading 3DEP dataset information from cache...")
+    with open(CACHE_FILE, 'rb') as f:
+        df, names, urls, num_points, geometries_GCS, geometries_EPSG3857 = pickle.load(
+            f)
 else:
-    print('File "resources.geojson" already exists.')
+    # Check if the file already exists
+    if not os.path.exists('resources.geojson'):
+        # request the boundaries from the Github repo and save locally.
+        url = 'https://raw.githubusercontent.com/hobuinc/usgs-lidar/master/boundaries/resources.geojson'
+        r = requests.get(url)
+        with open('resources.geojson', 'w') as f:
+            f.write(r.content.decode("utf-8"))
+    else:
+        print('File "resources.geojson" already exists.')
 
-with open('resources.geojson', 'r') as f:
-    geojsons_3DEP = json.load(f)
+    with open('resources.geojson', 'r') as f:
+        geojsons_3DEP = json.load(f)
 
-# make pandas dataframe and create pandas.Series objects for the names, urls, and number of points for each boundary.
-print('Creating dataframe...')
-with open('resources.geojson', 'r') as f:
-    df = gpd.read_file(f)
-    names = df['name']
-    urls = df['url']
-    num_points = df['count']
+    # make pandas dataframe and create pandas.Series objects for the names, urls, and number of points for each boundary.
+    print('Creating dataframe...')
+    with open('resources.geojson', 'r') as f:
+        df = gpd.read_file(f)
+        names = df['name']
+        urls = df['url']
+        num_points = df['count']
 
-# project the boundaries to EPSG 3857 (necessary for API call to AWS for 3DEP data)
-print('Projecting boundaries...')
-projected_geoms = []
-for geometry in df['geometry']:
-    projected_geoms.append(gcs_to_proj(geometry))
+    # project the boundaries to EPSG 3857 (necessary for API call to AWS for 3DEP data)
+    print('Projecting boundaries...')
+    projected_geoms = []
+    for geometry in df['geometry']:
+        projected_geoms.append(gcs_to_proj(geometry))
 
-geometries_GCS = df['geometry']
-geometries_EPSG3857 = gpd.GeoSeries(projected_geoms)
+    geometries_GCS = df['geometry']
+    geometries_EPSG3857 = gpd.GeoSeries(projected_geoms)
+
+    # After processing, save to cache
+    print("Saving 3DEP dataset information to cache...")
+    with open(CACHE_FILE, 'wb') as f:
+        pickle.dump((df, names, urls, num_points,
+                    geometries_GCS, geometries_EPSG3857), f)
 
 print('Done. 3DEP polygons downloaded and projected to Web Mercator (EPSG:3857)')
 
