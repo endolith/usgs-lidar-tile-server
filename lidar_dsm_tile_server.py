@@ -71,7 +71,6 @@ import json
 import math
 import os
 import pickle
-from concurrent.futures import ThreadPoolExecutor
 
 import geopandas as gpd
 import mercantile
@@ -80,7 +79,7 @@ import pdal
 import pyproj
 import requests
 import rioxarray as rio
-from flask import Flask, jsonify, send_file
+from flask import Flask, send_file
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 from rasterio.enums import Resampling
@@ -1003,9 +1002,6 @@ def save_tile_png(high_pass_dsm, zoom, x, y, tile_size=512):
 
 
 app = Flask(__name__)
-# Adjust the number of workers as needed
-executor = ThreadPoolExecutor(max_workers=4)
-
 
 
 @app.route('/tiles/<int:zoom>/<int:x>/<int:y>.png')
@@ -1018,9 +1014,12 @@ def serve_tile(zoom, x, y):
     if os.path.exists(tile_filename):
         return send_file(tile_filename, mimetype='image/png')
 
-    # For non-cached tiles, start async processing
-    executor.submit(process_and_save_tile, zoom, x, y)
-    return jsonify({"status": "processing"}), 202
+    # Process tile directly
+    dsm = get_3dep_data(zoom, x, y)
+    high_pass_dsm = process_dsm(dsm)
+    save_tile_png(high_pass_dsm, zoom, x, y)
+
+    return send_file(tile_filename, mimetype='image/png')
 
 
 def process_and_save_tile(zoom, x, y):
@@ -1030,4 +1029,4 @@ def process_and_save_tile(zoom, x, y):
 
 
 if __name__ == '__main__':
-    app.run(debug=True, threaded=True)
+    app.run(debug=True)
