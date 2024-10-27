@@ -630,7 +630,8 @@ def get_3dep_data(zoom, x, y):
                  num_points[i]))
 
     # print(intersecting_polys)
-    print(f" {len(intersecting_polys)} intersecting polys in this region")
+    print(f"{zoom}/{x}/{y}: {len(intersecting_polys)} intersecting polys in "
+          "this region")
 
     """
     Specify Point Cloud Resolution
@@ -674,7 +675,7 @@ def get_3dep_data(zoom, x, y):
     # sum the estimates of the number of points from each 3DEP dataset within the AOI
     num_pts_est = sum(number_pts_est)
     pointcloud_resolution = 0.0  # This should get all points?
-    print('Using full resolution with approximately '
+    print(f'{zoom}/{x}/{y}: Using full resolution with approximately '
           f'{int(math.ceil(num_pts_est/1e6)*1e6):,} points.')
 
     """
@@ -735,7 +736,7 @@ def get_3dep_data(zoom, x, y):
     unique_filename = get_unique_filename(zoom, x, y)
 
     if os.path.exists(unique_filename):
-        print(f"Using existing point cloud data: {unique_filename}")
+        print(f"{zoom}/{x}/{y}: Using existing point cloud data: {unique_filename}")
         pc_pipeline = {
             "pipeline": [
                 {
@@ -745,8 +746,8 @@ def get_3dep_data(zoom, x, y):
             ]
         }
     else:
-        print("Fetching point cloud data from AWS and saving as: "
-              f"{unique_filename}")
+        print(f"{zoom}/{x}/{y}: Fetching point cloud data from AWS and saving "
+              f"as: {unique_filename}")
         pc_pipeline = build_pdal_pipeline(
             AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution,
             filterNoise=True, reclassify=reclassify, savePointCloud=True,
@@ -997,7 +998,7 @@ def save_tile_png(high_pass_dsm, zoom, x, y, tile_size=512):
     tile_filename = f'tiles/tile_{zoom}_{x}_{y}.png'
     canvas.print_figure(tile_filename, dpi=100,
                         pad_inches=0, bbox_inches='tight')
-    print(f"Tile saved as {tile_filename}")
+    print(f"{zoom}/{x}/{y}: Tile saved as {tile_filename}")
     return tile_filename
 
 
