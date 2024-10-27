@@ -192,3 +192,14 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# Project-specific file types
+*.html
+*.geojson
+*.tif
+*.png
+*.laz
+*.pkl
+*.profile.txt
+*.jpg
+.stfolder/
