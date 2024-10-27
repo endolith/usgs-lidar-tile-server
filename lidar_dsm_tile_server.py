@@ -674,17 +674,9 @@ def get_3dep_data(zoom, x, y):
 
     # sum the estimates of the number of points from each 3DEP dataset within the AOI
     num_pts_est = sum(number_pts_est)
-    pointcloud_resolution = 1.0  # This corresponds to the 'Full' resolution option
+    pointcloud_resolution = 0.0  # This should get all points?
     print('Using full resolution with approximately '
           f'{int(math.ceil(num_pts_est/1e6)*1e6):,} points.')
-
-    # Define user_resolution to maintain compatibility with the rest of the script
-
-    class UserResolution:
-        def __init__(self, value):
-            self.value = value
-
-    user_resolution = UserResolution(pointcloud_resolution)
 
     """
     **Note**: Lidar point clouds can get *very* large, *very* fast, and the
@@ -741,7 +733,6 @@ def get_3dep_data(zoom, x, y):
     def get_unique_filename(zoom, x, y):
         return f"pointclouds/pointcloud_{zoom}_{x}_{y}.laz"
 
-    pointcloud_resolution = user_resolution.value
     unique_filename = get_unique_filename(zoom, x, y)
 
     if os.path.exists(unique_filename):
@@ -858,8 +849,7 @@ def get_3dep_data(zoom, x, y):
     # (Default is EPSG:3857 - Web Mercator Projection)
     # Change dem_outName to descriptive name; dem_outExt can be any extension supported by gdal.
 
-    pointcloud_resolution = user_resolution.value
-    dsm_resolution = 0.5
+    dsm_resolution = 0.5  # TODO: Vary with pointcloud resolution?
     dsm_pipeline = make_DEM_pipeline(
         AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution,
         dsm_resolution, filterNoise=True, reclassify=reclassify, savePointCloud=False,
