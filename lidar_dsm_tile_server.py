@@ -305,12 +305,14 @@ def build_pdal_pipeline(extent_epsg3857, usgs_3dep_dataset_names,
 
     if filterNoise == True:
 
-        # Filter stage for class 7 (low noise points)
-        filter_stage_class7 = {
-            "type": "filters.range",
-            "limits": "Classification![7:7]"
-        }
+        # "Low noise" seems to include relevant points below vegetation?
+        # # Filter stage for class 7 (low noise points)
+        # filter_stage_class7 = {
+        #     "type": "filters.range",
+        #     "limits": "Classification![7:7]"
+        # }
 
+        # "High noise" means birds and other stuff high above terrain?
         # Filter stage for class 18 (high noise points)
         filter_stage_class18 = {
             "type": "filters.range",
@@ -318,7 +320,7 @@ def build_pdal_pipeline(extent_epsg3857, usgs_3dep_dataset_names,
         }
 
         # Append both filter stages to the pipeline separately
-        pointcloud_pipeline['pipeline'].append(filter_stage_class7)
+        # pointcloud_pipeline['pipeline'].append(filter_stage_class7)
         pointcloud_pipeline['pipeline'].append(filter_stage_class18)
 
     if reclassify == True:
