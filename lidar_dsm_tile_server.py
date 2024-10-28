@@ -1013,7 +1013,7 @@ app = Flask(__name__)
 
 @app.route('/tiles/<string:grid_method>/<int:zoom>/<int:x>/<int:y>.png')
 def serve_tile(grid_method, zoom, x, y):
-    if zoom != 20:
+    if zoom != 18:
         return "Zoom level too low", 400
 
     tile_filename = f'tiles/{grid_method}/tile_{zoom}_{x}_{y}.png'
