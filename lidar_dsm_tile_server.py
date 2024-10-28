@@ -1030,11 +1030,5 @@ def serve_tile(grid_method, zoom, x, y):
     return send_file(tile_filename, mimetype='image/png')
 
 
-def process_and_save_tile(grid_method, zoom, x, y):
-    dsm = get_3dep_data(zoom, x, y, grid_method)
-    high_pass_dsm = process_dsm(dsm)
-    save_tile_png(high_pass_dsm, zoom, x, y, grid_method)
-
-
 if __name__ == '__main__':
     app.run(debug=True)
