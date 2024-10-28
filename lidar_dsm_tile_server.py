@@ -783,12 +783,13 @@ def get_3dep_data(zoom, x, y, grid_method):
     whether `reclassify == True` or `reclassify == False` in the pipeline
     constructed above).
     """
-
+    print(f"{zoom}/{x}/{y}: Executing pointcloud pipeline")
     if not os.path.exists(unique_filename):
         if reclassify:
             pc_pipeline.execute()
         else:
             pc_pipeline.execute_streaming(chunk_size=1000000)
+    print(f"{zoom}/{x}/{y}: Done with point cloud pipeline")
 
     """
     If the user only desires point cloud data, they may stop here. Following is
@@ -891,10 +892,12 @@ def get_3dep_data(zoom, x, y, grid_method):
     whether `reclassify == True` or `reclassify == False` in the pipeline
     constructed above).
     """
+    print(f"{zoom}/{x}/{y}: Executing DSM pipeline")
     if reclassify:
         dsm_pipeline.execute()
     else:
         dsm_pipeline.execute_streaming(chunk_size=1000000)
+    print(f"{zoom}/{x}/{y}: Done with DSM pipeline")
 
     """
     Visualize the DEM (DSM/DTM)
@@ -1020,6 +1023,7 @@ def serve_tile(grid_method, zoom, x, y):
 
     # Process tile directly
     dsm = get_3dep_data(zoom, x, y, grid_method)
+    print(f"{zoom}/{x}/{y}: Processing image")
     high_pass_dsm = process_dsm(dsm)
     save_tile_png(high_pass_dsm, zoom, x, y, grid_method)
 
