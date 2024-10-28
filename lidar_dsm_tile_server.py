@@ -619,7 +619,7 @@ def tile_to_aoi(zoom, x, y):
     return aoi_3857
 
 
-def get_3dep_data(zoom, x, y):
+def get_3dep_data(zoom, x, y, grid_method):
     reclassify = False
 
     AOI_EPSG3857 = tile_to_aoi(zoom, x, y)
@@ -856,7 +856,8 @@ def get_3dep_data(zoom, x, y):
         AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution,
         dsm_resolution, filterNoise=True, reclassify=reclassify, savePointCloud=False,
         outCRS=3857, pc_outName=get_unique_filename(zoom, x, y), pc_outType='laz',
-        demType='dsm', gridMethod='min', dem_outName=f'dsms/dsm_{zoom}_{x}_{y}', dem_outExt='tif',
+        demType='dsm', gridMethod=grid_method,
+        dem_outName=f'dsms/{grid_method}/dsm_{zoom}_{x}_{y}', dem_outExt='tif',
         driver="GTiff")
 
     """
@@ -911,7 +912,7 @@ def get_3dep_data(zoom, x, y):
     `xarray` object.
     """
 
-    dsm_name = f'dsms/dsm_{zoom}_{x}_{y}.tif'
+    dsm_name = f'dsms/{grid_method}/dsm_{zoom}_{x}_{y}.tif'
     dsm = rio.open_rasterio(dsm_name, masked=True).squeeze()
 
     """
@@ -988,7 +989,7 @@ def process_dsm(dsm):
     return high_pass_dsm
 
 
-def save_tile_png(high_pass_dsm, zoom, x, y, tile_size=512):
+def save_tile_png(high_pass_dsm, zoom, x, y, grid_method, tile_size=512):
     fig = Figure(figsize=(tile_size/100, tile_size/100), dpi=100)
     canvas = FigureCanvasAgg(fig)
     ax = fig.add_subplot(111)
@@ -997,7 +998,7 @@ def save_tile_png(high_pass_dsm, zoom, x, y, tile_size=512):
     ax.axis('off')
     fig.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
 
-    tile_filename = f'tiles/tile_{zoom}_{x}_{y}.png'
+    tile_filename = f'tiles/{grid_method}/tile_{zoom}_{x}_{y}.png'
     canvas.print_figure(tile_filename, dpi=100,
                         pad_inches=0, bbox_inches='tight')
     print(f"{zoom}/{x}/{y}: Tile saved as {tile_filename}")
@@ -1007,28 +1008,28 @@ def save_tile_png(high_pass_dsm, zoom, x, y, tile_size=512):
 app = Flask(__name__)
 
 
-@app.route('/tiles/<int:zoom>/<int:x>/<int:y>.png')
-def serve_tile(zoom, x, y):
+@app.route('/tiles/<string:grid_method>/<int:zoom>/<int:x>/<int:y>.png')
+def serve_tile(grid_method, zoom, x, y):
     if zoom != 20:
         return "Zoom level too low", 400
 
-    tile_filename = f'tiles/tile_{zoom}_{x}_{y}.png'
+    tile_filename = f'tiles/{grid_method}/tile_{zoom}_{x}_{y}.png'
 
     if os.path.exists(tile_filename):
         return send_file(tile_filename, mimetype='image/png')
 
     # Process tile directly
-    dsm = get_3dep_data(zoom, x, y)
+    dsm = get_3dep_data(zoom, x, y, grid_method)
     high_pass_dsm = process_dsm(dsm)
-    save_tile_png(high_pass_dsm, zoom, x, y)
+    save_tile_png(high_pass_dsm, zoom, x, y, grid_method)
 
     return send_file(tile_filename, mimetype='image/png')
 
 
-def process_and_save_tile(zoom, x, y):
-    dsm = get_3dep_data(zoom, x, y)
+def process_and_save_tile(grid_method, zoom, x, y):
+    dsm = get_3dep_data(zoom, x, y, grid_method)
     high_pass_dsm = process_dsm(dsm)
-    save_tile_png(high_pass_dsm, zoom, x, y)
+    save_tile_png(high_pass_dsm, zoom, x, y, grid_method)
 
 
 if __name__ == '__main__':
