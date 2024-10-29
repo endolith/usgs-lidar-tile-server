@@ -287,8 +287,7 @@ def build_pdal_pipeline(extent_epsg3857, usgs_3dep_dataset_names,
     # this is the basic pipeline which only accesses the 3DEP data
     readers = []
     for name in usgs_3dep_dataset_names:
-        url = "https://s3-us-west-2.amazonaws.com/usgs-lidar-public/{}/ept.json".format(
-            name)
+        url = f"https://s3-us-west-2.amazonaws.com/usgs-lidar-public/{name}/ept.json"
         reader = {
             "type": "readers.ept",
             "filename": str(url),
@@ -347,7 +346,7 @@ def build_pdal_pipeline(extent_epsg3857, usgs_3dep_dataset_names,
 
     reprojection_stage = {
         "type": "filters.reprojection",
-        "out_srs": "EPSG:{}".format(outCRS)
+        "out_srs": f"EPSG:{outCRS}"
     }
 
     pointcloud_pipeline['pipeline'].append(reprojection_stage)
@@ -357,13 +356,13 @@ def build_pdal_pipeline(extent_epsg3857, usgs_3dep_dataset_names,
         if pc_outType == 'las':
             savePC_stage = {
                 "type": "writers.las",
-                "filename": str(pc_outName)+'.' + str(pc_outType),
+                "filename": f"{pc_outName}.{pc_outType}",
             }
         elif pc_outType == 'laz':
             savePC_stage = {
                 "type": "writers.las",
                 "compression": "laszip",
-                "filename": str(pc_outName)+'.' + str(pc_outType),
+                "filename": f"{pc_outName}.{pc_outType}",
             }
         else:
             raise Exception("pc_outType must be 'las' or 'laz'.")
@@ -442,7 +441,7 @@ def make_DEM_pipeline(extent_epsg3857, usgs_3dep_dataset_name, pc_resolution, de
     if demType == 'dsm':
         dem_stage = {
             "type": "writers.gdal",
-            "filename": str(dem_outName) + '.' + str(dem_outExt),
+            "filename": f"{dem_outName}.{dem_outExt}",
             "gdaldriver": driver,
             "nodata": -9999,
             "output_type": gridMethod,
@@ -461,7 +460,7 @@ def make_DEM_pipeline(extent_epsg3857, usgs_3dep_dataset_name, pc_resolution, de
 
         dem_stage = {
             "type": "writers.gdal",
-            "filename": str(dem_outName) + '.' + str(dem_outExt),
+            "filename": f"{dem_outName}.{dem_outExt}",
             "gdaldriver": driver,
             "nodata": -9999,
             "output_type": gridMethod,
