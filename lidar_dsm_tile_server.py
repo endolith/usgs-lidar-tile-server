@@ -852,13 +852,13 @@ def get_3dep_data(zoom, x, y, grid_method):
     # Change dem_outName to descriptive name; dem_outExt can be any extension supported by gdal.
 
     dsm_resolution = 0.5  # TODO: Vary with pointcloud resolution?
+    dsm_filename = f"dsms/{grid_method}/dsm_{zoom}_{x}_{y}.tif"
     dsm_pipeline = make_DEM_pipeline(
         AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution,
         dsm_resolution, filterNoise=True, reclassify=reclassify, savePointCloud=False,
         outCRS=3857, pc_outName=get_unique_filename(zoom, x, y), pc_outType='laz',
         demType='dsm', gridMethod=grid_method,
-        dem_outName=f'dsms/{grid_method}/dsm_{zoom}_{x}_{y}', dem_outExt='tif',
-        driver="GTiff")
+        dem_outName=dsm_filename[:-4], dem_outExt='tif', driver="GTiff")
 
     """
     The PDAL pipeline is now constructed for making the DSM. Running the the
@@ -913,9 +913,7 @@ def get_3dep_data(zoom, x, y, grid_method):
     file path (e.g., `/path/to/my/dtm/dtm.tif`). Then we open the dtm as an
     `xarray` object.
     """
-
-    dsm_name = f'dsms/{grid_method}/dsm_{zoom}_{x}_{y}.tif'
-    dsm = rio.open_rasterio(dsm_name, masked=True).squeeze()
+    dsm = rio.open_rasterio(dsm_filename, masked=True).squeeze()
 
     """
     DEMs can be very large and require significant RAM to plot. Here, we apply
