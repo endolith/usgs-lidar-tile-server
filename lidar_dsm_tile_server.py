@@ -989,6 +989,10 @@ def process_dsm(dsm):
     return high_pass_dsm
 
 
+def get_tile_filename(grid_method, zoom, x, y):
+    return f'tiles/{grid_method}/tile_{zoom}_{x}_{y}.png'
+
+
 def save_tile_png(high_pass_dsm, zoom, x, y, grid_method, tile_size=512):
     fig = Figure(figsize=(tile_size/100, tile_size/100), dpi=100)
     canvas = FigureCanvasAgg(fig)
@@ -998,7 +1002,7 @@ def save_tile_png(high_pass_dsm, zoom, x, y, grid_method, tile_size=512):
     ax.axis('off')
     fig.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
 
-    tile_filename = f'tiles/{grid_method}/tile_{zoom}_{x}_{y}.png'
+    tile_filename = get_tile_filename(grid_method, zoom, x, y)
     canvas.print_figure(tile_filename, dpi=100,
                         pad_inches=0, bbox_inches='tight')
     print(f"{zoom}/{x}/{y}: Tile saved as {tile_filename}")
@@ -1013,7 +1017,7 @@ def serve_tile(grid_method, zoom, x, y):
     if zoom != 18:
         return "Zoom level too low", 400
 
-    tile_filename = f'tiles/{grid_method}/tile_{zoom}_{x}_{y}.png'
+    tile_filename = get_tile_filename(grid_method, zoom, x, y)
 
     if os.path.exists(tile_filename):
         return send_file(tile_filename, mimetype='image/png')
