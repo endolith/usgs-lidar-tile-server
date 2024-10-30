@@ -731,28 +731,25 @@ def get_3dep_data(zoom, x, y, grid_method):
     # (Default is EPSG:3857 - Web Mercator Projection)
     # Change pc_outname to descriptive name and pc_outType to 'las' or 'laz'.
 
-    def get_unique_filename(zoom, x, y):
-        return f"pointclouds/pointcloud_{zoom}_{x}_{y}.laz"
+    pc_filename = f"pointclouds/pointcloud_{zoom}_{x}_{y}.laz"
 
-    unique_filename = get_unique_filename(zoom, x, y)
-
-    if os.path.exists(unique_filename):
-        print(f"{zoom}/{x}/{y}: Using existing point cloud data: {unique_filename}")
+    if os.path.exists(pc_filename):
+        print(f"{zoom}/{x}/{y}: Using existing point cloud data: {pc_filename}")
         pc_pipeline = {
             "pipeline": [
                 {
                     "type": "readers.las",
-                    "filename": unique_filename
+                    "filename": pc_filename
                 }
             ]
         }
     else:
         print(f"{zoom}/{x}/{y}: Fetching point cloud data from AWS and saving "
-              f"as: {unique_filename}")
+              f"as: {pc_filename}")
         pc_pipeline = build_pdal_pipeline(
             AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution,
             filterNoise=True, reclassify=reclassify, savePointCloud=True,
-            outCRS=3857, pc_outName=unique_filename[:-4], pc_outType='laz')
+            outCRS=3857, pc_outName=pc_filename[:-4], pc_outType='laz')
 
     """
     The PDAL pipeline is now constructed. Running the the PDAL Python bindings
@@ -783,7 +780,7 @@ def get_3dep_data(zoom, x, y, grid_method):
     constructed above).
     """
     print(f"{zoom}/{x}/{y}: Executing pointcloud pipeline")
-    if not os.path.exists(unique_filename):
+    if not os.path.exists(pc_filename):
         if reclassify:
             pc_pipeline.execute()
         else:
@@ -856,7 +853,7 @@ def get_3dep_data(zoom, x, y, grid_method):
     dsm_pipeline = make_DEM_pipeline(
         AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution,
         dsm_resolution, filterNoise=True, reclassify=reclassify, savePointCloud=False,
-        outCRS=3857, pc_outName=get_unique_filename(zoom, x, y), pc_outType='laz',
+        outCRS=3857, pc_outName=pc_filename[:-4], pc_outType='laz',
         demType='dsm', gridMethod=grid_method,
         dem_outName=dsm_filename[:-4], dem_outExt='tif', driver="GTiff")
 
