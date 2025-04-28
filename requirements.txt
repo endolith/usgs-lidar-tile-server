@@ -1,0 +1,13 @@
+# Requirements for lidar_dsm_tile_server
+
+geopandas
+mercantile
+pyproj
+shapely
+numpy
+scipy
+requests
+flask
+matplotlib
+rioxarray
+pdal
