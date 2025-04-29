@@ -414,10 +414,10 @@ def make_DEM_pipeline(extent_epsg3857, usgs_3dep_dataset_name, pc_resolution, de
                     the user will get error stating "Extension must be 'las' or 'laz'". If savePointcloud = False,
                     pc_outName can be in value.
         demType (str): Type of DEM produced. Input must 'dtm' (digital terrain model) or 'dsm' (digital surface model).
-        gridMethod (str): Method used. Options are 'min', 'mean', 'max', 'idw'.
+        gridMethod (str): Gridding method used. Options are 'min', 'mean', 'max', 'idw'.
         dem_outName (str): Desired name of DEM file on user's local file system.
         dem_outExt (str): DEM file extension. Default is TIF.
-        driver (str): File format. Default is GTIFF
+        driver (str): gdal code of the file format driver. Default is GTIFF. See other options at https://gdal.org/drivers/raster/index.html
 
     Returns:
         dem_pipeline (dict): Dictionary of processing stages in sequential order that define PDAL pipeline.
