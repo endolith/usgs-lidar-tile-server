@@ -986,6 +986,11 @@ def process_dsm(dsm):
 
 
 def get_tile_filename(grid_method, zoom, x, y):
+    # Get GPS coordinates for debugging
+    bounds = mercantile.bounds(x, y, zoom)
+    center_lat = (bounds.north + bounds.south) / 2
+    center_lon = (bounds.east + bounds.west) / 2
+    print(f"Tile {zoom}/{x}/{y} center: {center_lat:.6f}, {center_lon:.6f}")
     return f'tiles/{grid_method}/tile_{zoom}_{x}_{y}.png'
 
 
