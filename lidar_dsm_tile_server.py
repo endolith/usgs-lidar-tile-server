@@ -87,12 +87,6 @@ from scipy.ndimage import gaussian_filter
 from shapely.geometry import box
 from shapely.ops import transform
 
-# Create directories if they don't exist
-os.makedirs('tiles', exist_ok=True)
-os.makedirs('dsms', exist_ok=True)
-os.makedirs('pointclouds', exist_ok=True)
-
-
 """
 **If using Option 1 (Google Colab), proceed to Library Imports**
 
@@ -1029,4 +1023,9 @@ def serve_tile(grid_method, zoom, x, y):
 
 
 if __name__ == '__main__':
+    # Create directories if they don't exist
+    os.makedirs('tiles', exist_ok=True)
+    os.makedirs('dsms', exist_ok=True)
+    os.makedirs('pointclouds', exist_ok=True)
+
     app.run(debug=True)
