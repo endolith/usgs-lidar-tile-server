@@ -1028,4 +1028,5 @@ if __name__ == '__main__':
     os.makedirs('dsms', exist_ok=True)
     os.makedirs('pointclouds', exist_ok=True)
 
-    app.run(debug=True)
+    # Run on all interfaces (0.0.0.0) instead of just localhost
+    app.run(host='0.0.0.0', debug=True)
