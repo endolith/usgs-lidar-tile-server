@@ -1020,6 +1020,11 @@ def serve_tile(grid_method, zoom, x, y):
 
     # Process tile directly
     dsm = get_3dep_data(zoom, x, y, grid_method)
+
+    # Check if we got any data
+    if dsm is None or dsm.size == 0:
+        return "No data available for this tile", 404
+
     print(f"{zoom}/{x}/{y}: Processing image")
     high_pass_dsm = process_dsm(dsm)
     save_tile_png(high_pass_dsm, zoom, x, y, grid_method)
