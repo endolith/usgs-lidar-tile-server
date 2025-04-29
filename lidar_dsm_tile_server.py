@@ -628,6 +628,11 @@ def get_3dep_data(zoom, x, y, grid_method):
     print(f"{zoom}/{x}/{y}: {len(intersecting_polys)} intersecting polys in "
           "this region")
 
+    # If no intersecting polygons, return None
+    if not intersecting_polys:
+        print(f"{zoom}/{x}/{y}: No data available for this region")
+        return None
+
     """
     Specify Point Cloud Resolution
 
