@@ -995,6 +995,9 @@ def get_tile_filename(grid_method, zoom, x, y):
 
 
 def save_tile_png(high_pass_dsm, zoom, x, y, grid_method, tile_size=512):
+	# TODO: These are not always square for some reason, but iD seems to
+	# stretch them to square on its own
+    print(f"{zoom}/{x}/{y}: DSM data shape: {high_pass_dsm.shape}")
     fig = Figure(figsize=(tile_size/100, tile_size/100), dpi=100)
     canvas = FigureCanvasAgg(fig)
     ax = fig.add_subplot(111)
