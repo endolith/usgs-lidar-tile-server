@@ -1038,10 +1038,21 @@ def serve_tile(grid_method, zoom, x, y):
 
 
 if __name__ == '__main__':
-    # Create directories if they don't exist
-    os.makedirs('tiles', exist_ok=True)
-    os.makedirs('dsms', exist_ok=True)
-    os.makedirs('pointclouds', exist_ok=True)
+    # Create base directories if they don't exist
+    base_dirs = ['tiles', 'dsms', 'pointclouds']
+    for dir in base_dirs:
+        if not os.path.exists(dir):
+            os.makedirs(dir)
+            print(f"Created directory: {dir}")
+
+    # Create subdirectories for each grid method
+    grid_methods = ['min', 'max', 'mean', 'idw']
+    for method in grid_methods:
+        for dir in ['tiles', 'dsms']:
+            subdir = f'{dir}/{method}'
+            if not os.path.exists(subdir):
+                os.makedirs(subdir)
+                print(f"Created directory: {subdir}")
 
     # Run HTTPS server
     app.run(host='0.0.0.0', port=5000, debug=True,
