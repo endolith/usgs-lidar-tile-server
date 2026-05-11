@@ -71,6 +71,7 @@ import json
 import math
 import os
 import pickle
+import re
 
 import geopandas as gpd
 import mercantile
@@ -80,6 +81,9 @@ import pyproj
 import requests
 import rioxarray as rio
 from flask import Flask, send_file
+from matplotlib import cm as mpl_cm
+from matplotlib import colors as mpl_colors
+from matplotlib.cm import ScalarMappable
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 from rasterio.enums import Resampling
@@ -614,6 +618,23 @@ _NE_110M_URL = (
     "geojson/ne_110m_admin_0_countries.geojson"
 )
 _WORLD_OUTLINE_3857 = None
+_SURVEYS_META_GDF_3857 = None
+
+_YEAR_IN_NAME = re.compile(r"\b((?:19|20)\d{2})\b")
+
+
+def _parse_acquisition_year_from_survey_name(name):
+    """
+    resources.geojson has no explicit collection-year field; USGS dataset ids
+    usually embed a four-digit year (e.g. AK_BrooksCamp_2012). Last match wins
+    when several years appear (e.g. project phases).
+    """
+    if name is None:
+        return None
+    matches = _YEAR_IN_NAME.findall(str(name))
+    if not matches:
+        return None
+    return int(matches[-1])
 
 
 def tile_max_side_meters_3857(x, y, zoom):
@@ -658,6 +679,47 @@ def world_countries_3857():
     return _WORLD_OUTLINE_3857
 
 
+def surveys_metadata_gdf_3857():
+    """
+    3DEP public EPT footprints (hobuinc/usgs-lidar resources.geojson) in Web Mercator.
+
+    Only name / count / geometry are authoritative; acquisition year is inferred
+    from the dataset id string when present (same idea as USGS 'by collection
+    year' overview maps, but approximate).
+    """
+    global _SURVEYS_META_GDF_3857
+    if _SURVEYS_META_GDF_3857 is not None:
+        return _SURVEYS_META_GDF_3857
+    n = len(geometries_EPSG3857)
+    years = []
+    for i in range(n):
+        years.append(_parse_acquisition_year_from_survey_name(names.iloc[i]))
+    year_col = np.array(
+        [float(y) if y is not None else np.nan for y in years], dtype=np.float64
+    )
+    counts = np.asarray(num_points, dtype=np.float64)
+    counts = np.where(np.isfinite(counts) & (counts > 0), counts, np.nan)
+    _SURVEYS_META_GDF_3857 = gpd.GeoDataFrame(
+        {
+            "name": names.values,
+            "count": counts,
+            "year": year_col,
+            "geometry": geometries_EPSG3857.values,
+        },
+        crs="EPSG:3857",
+    )
+    return _SURVEYS_META_GDF_3857
+
+
+def _surveys_intersecting_tile_3857(tile_poly):
+    gdf = surveys_metadata_gdf_3857()
+    cand = list(gdf.sindex.intersection(tile_poly.bounds))
+    if not cand:
+        return gdf.iloc[[]].copy()
+    sub = gdf.iloc[cand]
+    return sub[sub.intersects(tile_poly)].copy()
+
+
 def _graticule_step_deg(zoom):
     if zoom <= 1:
         return 45
@@ -689,10 +751,18 @@ def _draw_graticule_3857(ax, west, south, east, north, zoom):
 
 def render_navigation_tile_png(zoom, x, y, grid_method, tile_size=TILE_PNG_PX):
     """
-    Low-zoom bearings layer: coastlines + graticule in Web Mercator (no LiDAR).
+    Low-zoom bearings layer (no LiDAR): Natural Earth coastlines, graticule, and
+    USGS public EPT survey footprints from resources.geojson.
+
+    Survey polygons use fill color by acquisition year parsed from the dataset id
+    (resources have no separate year field). Edge weight scales slightly with
+    log10(point count) so larger acquisitions read heavier—similar in spirit to
+    overview maps that combine coverage with vintage / quality cues.
     """
     bbox_m = mercantile.xy_bounds(x, y, zoom)
     ll = mercantile.bounds(x, y, zoom)
+    tile_poly = box(bbox_m.left, bbox_m.bottom, bbox_m.right, bbox_m.top)
+
     fig = Figure(figsize=(tile_size / 100, tile_size / 100), dpi=100)
     canvas = FigureCanvasAgg(fig)
     ax = fig.add_subplot(111)
@@ -703,10 +773,82 @@ def render_navigation_tile_png(zoom, x, y, grid_method, tile_size=TILE_PNG_PX):
 
     world = world_countries_3857()
     world.boundary.plot(ax=ax, color="#4a5f78", linewidth=0.65, antialiased=True)
+
+    surveys = _surveys_intersecting_tile_3857(tile_poly)
+    year_norm = mpl_colors.Normalize(vmin=1998.0, vmax=2026.0)
+    try:
+        year_cmap = mpl_cm.colormaps["YlGnBu"]
+    except AttributeError:
+        year_cmap = mpl_cm.get_cmap("YlGnBu")
+    sm = ScalarMappable(norm=year_norm, cmap=year_cmap)
+    sm.set_array([])
+
+    if len(surveys) > 0:
+        surveys = surveys.assign(_area=surveys.geometry.area).sort_values(
+            "_area", ascending=True
+        )
+        logc = np.log10(
+            np.maximum(surveys["count"].to_numpy(dtype=np.float64), 1.0)
+        )
+        lw_scalar = float(
+            0.25
+            + 0.55 * np.clip((np.nanmedian(logc) - 6.0) / 5.0, 0.0, 1.0)
+        )
+        surveys.plot(
+            ax=ax,
+            column="year",
+            cmap=year_cmap,
+            norm=year_norm,
+            alpha=0.52,
+            edgecolor="#1a3d1a",
+            linewidth=lw_scalar,
+            missing_kwds={
+                "color": "#3a3a48",
+                "edgecolor": "#2d4a2d",
+                "linewidth": 0.35,
+                "alpha": 0.45,
+            },
+            legend=False,
+        )
+
     _draw_graticule_3857(ax, ll.west, ll.south, ll.east, ll.north, zoom)
 
+    if len(surveys) > 0 and zoom >= 4:
+        max_lbl = 6 if zoom >= 6 else 4
+        largest = surveys.nlargest(max_lbl, "_area")
+        for _, row in largest.iterrows():
+            pt = row.geometry.representative_point()
+            yv = row["year"]
+            if np.isfinite(yv):
+                label = str(int(yv))
+            else:
+                label = str(row["name"])[:10]
+            ax.annotate(
+                label,
+                (pt.x, pt.y),
+                fontsize=5,
+                color="#c8c8c8",
+                ha="center",
+                va="center",
+                alpha=0.85,
+            )
+
     ax.axis("off")
-    fig.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
+
+    if len(surveys) > 0:
+        fig.subplots_adjust(left=0, right=1, top=1, bottom=0.11, wspace=0, hspace=0)
+        cax = fig.add_axes([0.12, 0.02, 0.76, 0.045])
+        cbar = fig.colorbar(sm, cax=cax, orientation="horizontal")
+        cbar.ax.tick_params(labelsize=4, colors="#a0a0a0", length=2, pad=1)
+        cbar.set_label(
+            "Year in dataset id (approx.)",
+            color="#a0a0a0",
+            fontsize=5,
+            labelpad=2,
+        )
+    else:
+        fig.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
+
     tile_filename = get_tile_filename(grid_method, zoom, x, y)
     canvas.print_figure(tile_filename, dpi=100, pad_inches=0, bbox_inches="tight")
     print(f"{zoom}/{x}/{y}: Navigation tile saved as {tile_filename}")
