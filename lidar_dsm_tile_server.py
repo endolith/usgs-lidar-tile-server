@@ -296,6 +296,13 @@ def build_pdal_pipeline(extent_epsg3857, usgs_3dep_dataset_names,
         readers
     }
 
+    # EPT data may omit Classification; filters.range on it then errors (issue #13).
+    # Empty-source ferry creates the dimension when missing; existing values stay put.
+    pointcloud_pipeline["pipeline"].append({
+        "type": "filters.ferry",
+        "dimensions": "=>Classification",
+    })
+
     if filterNoise == True:
 
         # "Low noise" seems to include relevant points below vegetation?
