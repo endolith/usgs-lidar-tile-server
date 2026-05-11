@@ -237,6 +237,34 @@ def downsample_dem(dem):
         return dem
 
 
+# Entwine ept.json lists which dimensions exist for a dataset. Some USGS EPT
+# builds omit Classification; filters.range then raises "Invalid dimension name
+# 'Classification'" (see https://github.com/endolith/usgs-lidar-tile-server/issues/13).
+_EPT_SCHEMA_CLASSIFICATION_CACHE = {}
+
+
+def ept_schema_includes_classification(dataset_name):
+    """
+    Return True if the dataset's ept.json schema includes a Classification
+    dimension, so PDAL filters.range on Classification is valid.
+    """
+    if dataset_name in _EPT_SCHEMA_CLASSIFICATION_CACHE:
+        return _EPT_SCHEMA_CLASSIFICATION_CACHE[dataset_name]
+    url = (
+        f"https://s3-us-west-2.amazonaws.com/usgs-lidar-public/"
+        f"{dataset_name}/ept.json"
+    )
+    response = requests.get(url, timeout=60)
+    response.raise_for_status()
+    meta = response.json()
+    schema = meta.get("schema", [])
+    has_classification = any(
+        entry.get("name") == "Classification" for entry in schema
+    )
+    _EPT_SCHEMA_CLASSIFICATION_CACHE[dataset_name] = has_classification
+    return has_classification
+
+
 def build_pdal_pipeline(extent_epsg3857, usgs_3dep_dataset_names,
                         pc_resolution, filterNoise=False, reclassify=False,
                         savePointCloud=True, outCRS=3857,
@@ -670,6 +698,15 @@ def get_3dep_data(zoom, x, y, grid_method):
         number_pts_est.append(
             (int((AOI_EPSG3857.area/poly[2].area)*(poly[4]))))
 
+    filter_noise = all(
+        ept_schema_includes_classification(n) for n in usgs_3dep_datasets
+    )
+    if not filter_noise:
+        print(
+            f"{zoom}/{x}/{y}: At least one intersecting EPT dataset has no "
+            "Classification in its schema; skipping class-based noise filter."
+        )
+
     AOI_EPSG3857_wkt = AOI_EPSG3857.wkt
 
     # sum the estimates of the number of points from each 3DEP dataset within the AOI
@@ -747,7 +784,7 @@ def get_3dep_data(zoom, x, y, grid_method):
               f"as: {pc_filename}")
         pc_pipeline = build_pdal_pipeline(
             AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution,
-            filterNoise=True, reclassify=reclassify, savePointCloud=True,
+            filterNoise=filter_noise, reclassify=reclassify, savePointCloud=True,
             outCRS=3857, pc_outName=pc_filename[:-4], pc_outType='laz')
 
     """
@@ -851,7 +888,7 @@ def get_3dep_data(zoom, x, y, grid_method):
     dsm_filename = f"dsms/{grid_method}/dsm_{zoom}_{x}_{y}.tif"
     dsm_pipeline = make_DEM_pipeline(
         AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution,
-        dsm_resolution, filterNoise=True, reclassify=reclassify, savePointCloud=False,
+        dsm_resolution, filterNoise=filter_noise, reclassify=reclassify, savePointCloud=False,
         outCRS=3857, pc_outName=pc_filename[:-4], pc_outType='laz',
         demType='dsm', gridMethod=grid_method,
         dem_outName=dsm_filename[:-4], dem_outExt='tif', driver="GTiff")
