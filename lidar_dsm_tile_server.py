@@ -71,6 +71,55 @@ import json
 import math
 import os
 import pickle
+import pathlib
+import sys
+import tempfile
+
+
+def _configure_pdal_driver_path_without_draco():
+    """Avoid PDAL repeatedly trying to load DRACO plugins when libdraco is absent.
+
+    Conda-forge PDAL often ships ``libpdal_plugin_*_draco.so``; if ``libdraco``
+    is not installed, ``PluginManager::loadAll`` logs an error for each broken
+    plugin. Setting ``PDAL_DRIVER_PATH`` replaces PDAL's default plugin search
+    paths (see PDAL ``PluginDirectory.cpp``), so we use a directory of symlinks
+    to every other ``libpdal_plugin_*`` in ``sys.prefix/lib`` and skip DRACO.
+    This project only uses EPT/LAS/GDAL stages, not DRACO. Respect a
+    user-provided ``PDAL_DRIVER_PATH`` and skip when no DRACO plugins exist.
+    """
+    if os.environ.get("PDAL_DRIVER_PATH"):
+        return
+    lib = pathlib.Path(sys.prefix) / "lib"
+    patterns = ("libpdal_plugin_*.so", "libpdal_plugin_*.dylib")
+    plugin_paths = []
+    for pattern in patterns:
+        plugin_paths.extend(lib.glob(pattern))
+    pdal_sub = lib / "pdal"
+    if pdal_sub.is_dir():
+        for pattern in patterns:
+            plugin_paths.extend(pdal_sub.glob(pattern))
+    if not plugin_paths:
+        return
+    draco = [p for p in plugin_paths if "draco" in p.name.lower()]
+    if not draco:
+        return
+    shim = pathlib.Path(
+        tempfile.mkdtemp(prefix="pdal_plugins_without_draco_"))
+    linked = 0
+    for path in plugin_paths:
+        if "draco" in path.name.lower():
+            continue
+        dest = shim / path.name
+        if dest.exists():
+            continue
+        dest.symlink_to(path.resolve())
+        linked += 1
+    if linked == 0:
+        return
+    os.environ["PDAL_DRIVER_PATH"] = str(shim)
+
+
+_configure_pdal_driver_path_without_draco()
 
 import geopandas as gpd
 import mercantile
