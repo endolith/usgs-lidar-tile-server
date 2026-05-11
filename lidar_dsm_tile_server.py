@@ -297,24 +297,14 @@ def build_pdal_pipeline(extent_epsg3857, usgs_3dep_dataset_names,
     }
 
     if filterNoise == True:
-
-        # "Low noise" seems to include relevant points below vegetation?
-        # # Filter stage for class 7 (low noise points)
-        # filter_stage_class7 = {
-        #     "type": "filters.range",
-        #     "limits": "Classification![7:7]"
-        # }
-
-        # "High noise" means birds and other stuff high above terrain?
-        # Filter stage for class 18 (high noise points)
-        filter_stage_class18 = {
-            "type": "filters.range",
-            "limits": "Classification![18:18]"
+        # ASPRS LAS class 7 = low noise, 18 = high noise. filters.expression is
+        # streamable (unlike two-pass filters.outlier). Remaining misclassified
+        # spikes still need robust display scaling in save_tile_png (issue #11).
+        noise_filter_stage = {
+            "type": "filters.expression",
+            "expression": "Classification != 7 && Classification != 18",
         }
-
-        # Append both filter stages to the pipeline separately
-        # pointcloud_pipeline['pipeline'].append(filter_stage_class7)
-        pointcloud_pipeline['pipeline'].append(filter_stage_class18)
+        pointcloud_pipeline["pipeline"].append(noise_filter_stage)
 
     if reclassify == True:
 
@@ -1002,7 +992,27 @@ def save_tile_png(high_pass_dsm, zoom, x, y, grid_method, tile_size=512):
     canvas = FigureCanvasAgg(fig)
     ax = fig.add_subplot(111)
 
-    ax.imshow(high_pass_dsm, cmap='gray', interpolation='nearest')
+    # Robust contrast: a handful of extreme DSM/high-pass values otherwise
+    # dominate matplotlib autoscale and the tile renders flat white (issue #11).
+    data = np.asarray(high_pass_dsm, dtype=float)
+    finite = data[np.isfinite(data)]
+    if finite.size > 0:
+        lo, hi = np.percentile(finite, [0.5, 99.5])
+        if lo >= hi:
+            lo = float(np.min(finite))
+            hi = float(np.max(finite))
+        if lo >= hi:
+            lo, hi = lo - 1.0, hi + 1.0
+    else:
+        lo, hi = -1.0, 1.0
+
+    ax.imshow(
+        high_pass_dsm,
+        cmap='gray',
+        interpolation='nearest',
+        vmin=lo,
+        vmax=hi,
+    )
     ax.axis('off')
     fig.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
 
