@@ -595,10 +595,25 @@ def create_bounding_box(sw_lat, sw_lon, ne_lat, ne_lon):
 
 # Slippy-map tile size used for PNG output and for choosing DSM / EPT sampling.
 TILE_PNG_PX = 512
-# Zoom range for tiles. Lower zoom uses coarser EPT `resolution` (octree depth)
-# so each tile stays tractable; see GitHub issues #8 and #36.
-MIN_TILE_ZOOM = 14
+# Full slippy-map zoom range served by this app.
+MIN_MAP_ZOOM = 0
 MAX_TILE_ZOOM = 18
+# z <= NAV_TILE_MAX_ZOOM: bearings-only tiles (no 3DEP); continental overview
+# cannot be built from EPT without an impractical number of readers per tile.
+NAV_TILE_MAX_ZOOM = 7
+# First zoom where we query 3DEP EPT (coarse octree + DSM pyramid still apply).
+LIDAR_TILE_MIN_ZOOM = 8
+# At and above this zoom, tiles are high-pass only (OSM cliff/building emphasis).
+# Between LIDAR_TILE_MIN_ZOOM and this level, we crossfade toward smoothed DSM.
+LIDAR_BLEND_FULL_HP_ZOOM = 14
+
+# Natural Earth 110m countries (public domain); cached locally after first fetch.
+_NE_110M_COUNTRIES = "natural_earth_110m_admin_0_countries.geojson"
+_NE_110M_URL = (
+    "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/"
+    "geojson/ne_110m_admin_0_countries.geojson"
+)
+_WORLD_OUTLINE_3857 = None
 
 
 def tile_max_side_meters_3857(x, y, zoom):
@@ -627,6 +642,77 @@ def dsm_and_ept_resolution_m(x, y, zoom, tile_px=TILE_PNG_PX):
     return dsm_m, pc_m
 
 
+def world_countries_3857():
+    """Natural Earth 110m land polygons in Web Mercator (lazy, disk-cached)."""
+    global _WORLD_OUTLINE_3857
+    if _WORLD_OUTLINE_3857 is not None:
+        return _WORLD_OUTLINE_3857
+    if not os.path.exists(_NE_110M_COUNTRIES):
+        print(f"Downloading Natural Earth 110m countries to {_NE_110M_COUNTRIES} …")
+        r = requests.get(_NE_110M_URL, timeout=120)
+        r.raise_for_status()
+        with open(_NE_110M_COUNTRIES, "wb") as f:
+            f.write(r.content)
+    gdf = gpd.read_file(_NE_110M_COUNTRIES)
+    _WORLD_OUTLINE_3857 = gdf.to_crs(epsg=3857)
+    return _WORLD_OUTLINE_3857
+
+
+def _graticule_step_deg(zoom):
+    if zoom <= 1:
+        return 45
+    if zoom <= 3:
+        return 15
+    if zoom <= 5:
+        return 10
+    if zoom <= 7:
+        return 5
+    return 2
+
+
+def _draw_graticule_3857(ax, west, south, east, north, zoom):
+    to3857 = pyproj.Transformer.from_crs(
+        pyproj.CRS("EPSG:4326"), pyproj.CRS("EPSG:3857"), always_xy=True
+    )
+    step = _graticule_step_deg(zoom)
+    lo = math.floor(west / step) * step
+    hi = math.ceil(east / step) * step
+    for lon in np.arange(lo, hi + step * 0.5, step):
+        xs, ys = to3857.transform([lon, lon], [south, north])
+        ax.plot(xs, ys, color="#2d2d3a", linewidth=0.45, solid_capstyle="round")
+    lo = math.floor(south / step) * step
+    hi = math.ceil(north / step) * step
+    for lat in np.arange(lo, hi + step * 0.5, step):
+        xs, ys = to3857.transform([west, east], [lat, lat])
+        ax.plot(xs, ys, color="#2d2d3a", linewidth=0.45, solid_capstyle="round")
+
+
+def render_navigation_tile_png(zoom, x, y, grid_method, tile_size=TILE_PNG_PX):
+    """
+    Low-zoom bearings layer: coastlines + graticule in Web Mercator (no LiDAR).
+    """
+    bbox_m = mercantile.xy_bounds(x, y, zoom)
+    ll = mercantile.bounds(x, y, zoom)
+    fig = Figure(figsize=(tile_size / 100, tile_size / 100), dpi=100)
+    canvas = FigureCanvasAgg(fig)
+    ax = fig.add_subplot(111)
+    ax.set_facecolor("#12121a")
+    ax.set_xlim(bbox_m.left, bbox_m.right)
+    ax.set_ylim(bbox_m.bottom, bbox_m.top)
+    ax.set_aspect("equal")
+
+    world = world_countries_3857()
+    world.boundary.plot(ax=ax, color="#4a5f78", linewidth=0.65, antialiased=True)
+    _draw_graticule_3857(ax, ll.west, ll.south, ll.east, ll.north, zoom)
+
+    ax.axis("off")
+    fig.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
+    tile_filename = get_tile_filename(grid_method, zoom, x, y)
+    canvas.print_figure(tile_filename, dpi=100, pad_inches=0, bbox_inches="tight")
+    print(f"{zoom}/{x}/{y}: Navigation tile saved as {tile_filename}")
+    return tile_filename
+
+
 def tile_to_aoi(zoom, x, y):
     """
     Example usage:
@@ -648,6 +734,9 @@ def tile_to_aoi(zoom, x, y):
 
 def get_3dep_data(zoom, x, y, grid_method):
     reclassify = False
+
+    if zoom < LIDAR_TILE_MIN_ZOOM:
+        return None
 
     dsm_resolution_m, pointcloud_resolution = dsm_and_ept_resolution_m(
         x, y, zoom)
@@ -1020,7 +1109,7 @@ To cite this notebook:  Speed, C., Beckley, M., Crosby, C., & Nandigam, V. (2022
 """
 
 
-def process_dsm(dsm, dsm_resolution_meters):
+def process_dsm(dsm, dsm_resolution_meters, zoom):
     """
     High-pass emphasis (DSM minus Gaussian low-pass) for subtle relief in iD.
 
@@ -1029,6 +1118,10 @@ def process_dsm(dsm, dsm_resolution_meters):
     in ground meters, so the residual looks flat (issue #36). Scale sigma with
     ground sample distance so the low-pass cutoff moves to a longer wavelength
     at overview zooms.
+
+    Between LIDAR_TILE_MIN_ZOOM and LIDAR_BLEND_FULL_HP_ZOOM we crossfade from
+    normalized smoothed DSM (broad relief for bearings) toward pure high-pass
+    (edge mapping) as zoom increases.
     """
     dsm_filled = np.nan_to_num(dsm, nan=np.nanmean(dsm))
     ref_gsd_m = 0.35
@@ -1036,7 +1129,25 @@ def process_dsm(dsm, dsm_resolution_meters):
     sigma_px = float(np.clip(sigma_px, 4.0, 26.0))
     smoothed_dsm = gaussian_filter(dsm_filled, sigma=sigma_px)
     high_pass_dsm = dsm_filled - smoothed_dsm
-    return high_pass_dsm
+
+    if zoom >= LIDAR_BLEND_FULL_HP_ZOOM:
+        return high_pass_dsm
+
+    span = LIDAR_BLEND_FULL_HP_ZOOM - LIDAR_TILE_MIN_ZOOM
+    if span <= 0:
+        return high_pass_dsm
+    w_hp = (float(zoom) - LIDAR_TILE_MIN_ZOOM) / float(span)
+    w_hp = float(np.clip(w_hp, 0.0, 1.0))
+
+    def _norm01(a):
+        lo, hi = np.percentile(a, (2.0, 98.0))
+        if hi <= lo:
+            return np.zeros_like(a, dtype=np.float64)
+        return np.clip((a.astype(np.float64) - lo) / (hi - lo), 0.0, 1.0)
+
+    hi_n = _norm01(high_pass_dsm)
+    sm_n = _norm01(smoothed_dsm)
+    return (1.0 - w_hp) * sm_n + w_hp * hi_n
 
 
 def get_tile_filename(grid_method, zoom, x, y):
@@ -1048,15 +1159,15 @@ def get_tile_filename(grid_method, zoom, x, y):
     return f'tiles/{grid_method}/tile_{zoom}_{x}_{y}.png'
 
 
-def save_tile_png(high_pass_dsm, zoom, x, y, grid_method, tile_size=512):
-	# TODO: These are not always square for some reason, but iD seems to
-	# stretch them to square on its own
-    print(f"{zoom}/{x}/{y}: DSM data shape: {high_pass_dsm.shape}")
+def save_tile_png(raster, zoom, x, y, grid_method, tile_size=512):
+    # TODO: These are not always square for some reason, but iD seems to
+    # stretch them to square on its own
+    print(f"{zoom}/{x}/{y}: DSM data shape: {raster.shape}")
     fig = Figure(figsize=(tile_size/100, tile_size/100), dpi=100)
     canvas = FigureCanvasAgg(fig)
     ax = fig.add_subplot(111)
 
-    ax.imshow(high_pass_dsm, cmap='gray', interpolation='nearest')
+    ax.imshow(raster, cmap='gray', interpolation='nearest')
     ax.axis('off')
     fig.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
 
@@ -1072,9 +1183,9 @@ app = Flask(__name__)
 
 @app.route('/tiles/<string:grid_method>/<int:zoom>/<int:x>/<int:y>.png')
 def serve_tile(grid_method, zoom, x, y):
-    if zoom < MIN_TILE_ZOOM or zoom > MAX_TILE_ZOOM:
+    if zoom < MIN_MAP_ZOOM or zoom > MAX_TILE_ZOOM:
         return (
-            f"Zoom level not supported (use {MIN_TILE_ZOOM}–{MAX_TILE_ZOOM})",
+            f"Zoom level not supported (use {MIN_MAP_ZOOM}–{MAX_TILE_ZOOM})",
             400,
         )
 
@@ -1083,10 +1194,12 @@ def serve_tile(grid_method, zoom, x, y):
     if os.path.exists(tile_filename):
         return send_file(tile_filename, mimetype='image/png')
 
-    # Process tile directly
+    if zoom <= NAV_TILE_MAX_ZOOM:
+        render_navigation_tile_png(zoom, x, y, grid_method)
+        return send_file(tile_filename, mimetype='image/png')
+
     result = get_3dep_data(zoom, x, y, grid_method)
 
-    # Check if we got any data
     if result is None:
         return "No data available for this tile", 404
     dsm, dsm_resolution_m = result
@@ -1094,8 +1207,8 @@ def serve_tile(grid_method, zoom, x, y):
         return "No data available for this tile", 404
 
     print(f"{zoom}/{x}/{y}: Processing image")
-    high_pass_dsm = process_dsm(dsm, dsm_resolution_m)
-    save_tile_png(high_pass_dsm, zoom, x, y, grid_method)
+    display_raster = process_dsm(dsm, dsm_resolution_m, zoom)
+    save_tile_png(display_raster, zoom, x, y, grid_method)
 
     return send_file(tile_filename, mimetype='image/png')
 
