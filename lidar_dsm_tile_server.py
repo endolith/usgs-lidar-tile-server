@@ -974,13 +974,13 @@ To cite this notebook:  Speed, C., Beckley, M., Crosby, C., & Nandigam, V. (2022
 """
 
 
-def process_dsm(dsm):
+def process_dsm(dsm, grid_method):
     # Handle NaN or masked values in DSM
     dsm_filled = np.nan_to_num(dsm, nan=np.nanmean(dsm))
-    # Apply a Gaussian filter to smooth the DSM
+    if grid_method in ('stdev', 'count'):
+        return dsm_filled
     sigma = 5  # Adjust sigma to control the degree of smoothing
     smoothed_dsm = gaussian_filter(dsm_filled, sigma=sigma)
-    # Subtract the smoothed DSM from the original DSM to apply a high-pass filter
     high_pass_dsm = dsm_filled - smoothed_dsm
     return high_pass_dsm
 
@@ -1034,7 +1034,7 @@ def serve_tile(grid_method, zoom, x, y):
         return "No data available for this tile", 404
 
     print(f"{zoom}/{x}/{y}: Processing image")
-    high_pass_dsm = process_dsm(dsm)
+    high_pass_dsm = process_dsm(dsm, grid_method)
     save_tile_png(high_pass_dsm, zoom, x, y, grid_method)
 
     return send_file(tile_filename, mimetype='image/png')
@@ -1049,7 +1049,7 @@ if __name__ == '__main__':
             print(f"Created directory: {dir}")
 
     # Create subdirectories for each grid method
-    grid_methods = ['min', 'max', 'mean', 'idw']
+    grid_methods = ['min', 'max', 'mean', 'idw', 'stdev', 'count']
     for method in grid_methods:
         for dir in ['tiles', 'dsms']:
             subdir = f'{dir}/{method}'
