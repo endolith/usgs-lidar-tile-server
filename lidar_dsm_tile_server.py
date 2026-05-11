@@ -87,6 +87,28 @@ from scipy.ndimage import gaussian_filter
 from shapely.geometry import box
 from shapely.ops import transform
 
+# PDAL writers.gdal resolution (meters) — must match the value passed in
+# get_3dep_data; high-pass halo is derived from this and from sigma in pixels.
+DSM_RESOLUTION_M = 0.5
+# Gaussian high-pass uses scipy.ndimage.gaussian_filter(sigma=...) in **pixel**
+# units. Neighbor tiles disagreed at seams because each tile filtered in isolation
+# (wrong low-frequency baseline at edges, reflect padding). Fetch DSM on an AOI
+# padded by ~4*sigma pixels (in meters) for min/max, run the filter on that grid,
+# then clip back to the Web Mercator tile so the low-pass component matches what
+# a single larger raster would give for the interior.
+HIGH_PASS_SIGMA_PX = 5
+HIGH_PASS_HALO_SIGMA_MULT = 4.0
+
+
+def high_pass_halo_pixels():
+    return int(math.ceil(HIGH_PASS_HALO_SIGMA_MULT * HIGH_PASS_SIGMA_PX))
+
+
+def tile_polygon_epsg3857(x, y, zoom):
+    """Slippy tile bounds in Web Mercator (meters), same CRS as PDAL DSM output."""
+    minx, miny, maxx, maxy = mercantile.xy_bounds(x, y, zoom)
+    return box(minx, miny, maxx, maxy)
+
 """
 **If using Option 1 (Google Colab), proceed to Library Imports**
 
@@ -612,10 +634,14 @@ def tile_to_aoi(zoom, x, y):
     return aoi_3857
 
 
-def get_3dep_data(zoom, x, y, grid_method):
+def get_3dep_data(zoom, x, y, grid_method, dem_extent_3857=None,
+                  dsm_filename_suffix=""):
     reclassify = False
 
-    AOI_EPSG3857 = tile_to_aoi(zoom, x, y)
+    if dem_extent_3857 is not None:
+        AOI_EPSG3857 = dem_extent_3857
+    else:
+        AOI_EPSG3857 = tile_to_aoi(zoom, x, y)
 
     intersecting_polys = []
     for i, geom in enumerate(geometries_EPSG3857):
@@ -847,8 +873,9 @@ def get_3dep_data(zoom, x, y, grid_method):
     # (Default is EPSG:3857 - Web Mercator Projection)
     # Change dem_outName to descriptive name; dem_outExt can be any extension supported by gdal.
 
-    dsm_resolution = 0.5  # TODO: Vary with pointcloud resolution?
-    dsm_filename = f"dsms/{grid_method}/dsm_{zoom}_{x}_{y}.tif"
+    dsm_resolution = DSM_RESOLUTION_M
+    dsm_filename = (
+        f"dsms/{grid_method}/dsm_{zoom}_{x}_{y}{dsm_filename_suffix}.tif")
     dsm_pipeline = make_DEM_pipeline(
         AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution,
         dsm_resolution, filterNoise=True, reclassify=reclassify, savePointCloud=False,
@@ -977,9 +1004,9 @@ To cite this notebook:  Speed, C., Beckley, M., Crosby, C., & Nandigam, V. (2022
 def process_dsm(dsm):
     # Handle NaN or masked values in DSM
     dsm_filled = np.nan_to_num(dsm, nan=np.nanmean(dsm))
-    # Apply a Gaussian filter to smooth the DSM
-    sigma = 5  # Adjust sigma to control the degree of smoothing
-    smoothed_dsm = gaussian_filter(dsm_filled, sigma=sigma)
+    # Apply a Gaussian filter to smooth the DSM (sigma is in pixels; see
+    # HIGH_PASS_SIGMA_PX and high_pass_halo_pixels() for seam context).
+    smoothed_dsm = gaussian_filter(dsm_filled, sigma=HIGH_PASS_SIGMA_PX)
     # Subtract the smoothed DSM from the original DSM to apply a high-pass filter
     high_pass_dsm = dsm_filled - smoothed_dsm
     return high_pass_dsm
@@ -1026,12 +1053,28 @@ def serve_tile(grid_method, zoom, x, y):
     if os.path.exists(tile_filename):
         return send_file(tile_filename, mimetype='image/png')
 
-    # Process tile directly
-    dsm = get_3dep_data(zoom, x, y, grid_method)
+    # Min/max DSM tiles: fetch a Web-Mercator-padded DSM so Gaussian high-pass
+    # (pixel sigma) sees real neighbors, then clip to this tile (see module
+    # constants above). Mean/idw keep the strict tile AOI and filenames.
+    if grid_method in ('min', 'max'):
+        halo_px = high_pass_halo_pixels()
+        halo_m = halo_px * DSM_RESOLUTION_M
+        core_3857 = tile_polygon_epsg3857(x, y, zoom)
+        dem_extent = core_3857.buffer(halo_m)
+        dsm_suffix = f"_h{halo_px}px"
+        dsm = get_3dep_data(
+            zoom, x, y, grid_method,
+            dem_extent_3857=dem_extent, dsm_filename_suffix=dsm_suffix)
+    else:
+        dsm = get_3dep_data(zoom, x, y, grid_method)
 
     # Check if we got any data
     if dsm is None or dsm.size == 0:
         return "No data available for this tile", 404
+
+    if grid_method in ('min', 'max'):
+        minx, miny, maxx, maxy = mercantile.xy_bounds(x, y, zoom)
+        dsm = dsm.rio.clip_box(minx, miny, maxx, maxy)
 
     print(f"{zoom}/{x}/{y}: Processing image")
     high_pass_dsm = process_dsm(dsm)
