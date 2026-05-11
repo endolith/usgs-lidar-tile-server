@@ -71,6 +71,17 @@ import json
 import math
 import os
 import pickle
+import tempfile
+
+# Matplotlib reads MPLCONFIGDIR when first imported; if $HOME/.config/matplotlib
+# is not writable (common in serverless), it uses a random /tmp subdir and logs
+# a warning. A fixed writable directory keeps the font cache stable and speeds imports.
+if not os.environ.get("MPLCONFIGDIR"):
+    _mpl_config_dir = os.path.join(
+        tempfile.gettempdir(), "usgs-lidar-tile-server-matplotlib"
+    )
+    os.makedirs(_mpl_config_dir, exist_ok=True)
+    os.environ["MPLCONFIGDIR"] = _mpl_config_dir
 
 import geopandas as gpd
 import mercantile
