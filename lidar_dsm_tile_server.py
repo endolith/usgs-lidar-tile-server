@@ -593,6 +593,40 @@ def create_bounding_box(sw_lat, sw_lon, ne_lat, ne_lon):
     return box(sw_lon, sw_lat, ne_lon, ne_lat)
 
 
+# Slippy-map tile size used for PNG output and for choosing DSM / EPT sampling.
+TILE_PNG_PX = 512
+# Zoom range for tiles. Lower zoom uses coarser EPT `resolution` (octree depth)
+# so each tile stays tractable; see GitHub issues #8 and #36.
+MIN_TILE_ZOOM = 14
+MAX_TILE_ZOOM = 18
+
+
+def tile_max_side_meters_3857(x, y, zoom):
+    """Longer Web Mercator edge of the tile, in meters (EPT / DSM use EPSG:3857)."""
+    b = mercantile.xy_bounds(x, y, zoom)
+    return max(b.right - b.left, b.top - b.bottom)
+
+
+def dsm_and_ept_resolution_m(x, y, zoom, tile_px=TILE_PNG_PX):
+    """
+    Ground sampling distance for the DSM grid and matching EPT octree spacing.
+
+    PDAL readers.ept `resolution` is a minimum voxel edge length in CRS units
+    (meters for 3857): larger values walk shallower in the octree and return
+    fewer points (issue #8). writers.gdal `resolution` sets DSM cell size; we
+    align it to ~one cell per output pixel so overview tiles are not gigapixel
+    rasters of full-density LiDAR.
+    """
+    span_m = tile_max_side_meters_3857(x, y, zoom)
+    dsm_m = span_m / float(tile_px)
+    # At the most detailed zoom, match prior behavior: finest octree (`0` = full).
+    if zoom >= MAX_TILE_ZOOM:
+        pc_m = 0.0
+    else:
+        pc_m = max(dsm_m * 0.65, 0.12)
+    return dsm_m, pc_m
+
+
 def tile_to_aoi(zoom, x, y):
     """
     Example usage:
@@ -614,6 +648,9 @@ def tile_to_aoi(zoom, x, y):
 
 def get_3dep_data(zoom, x, y, grid_method):
     reclassify = False
+
+    dsm_resolution_m, pointcloud_resolution = dsm_and_ept_resolution_m(
+        x, y, zoom)
 
     AOI_EPSG3857 = tile_to_aoi(zoom, x, y)
 
@@ -674,9 +711,19 @@ def get_3dep_data(zoom, x, y, grid_method):
 
     # sum the estimates of the number of points from each 3DEP dataset within the AOI
     num_pts_est = sum(number_pts_est)
-    pointcloud_resolution = 0.0  # This should get all points?
-    print(f'{zoom}/{x}/{y}: Using full resolution with approximately '
-          f'{int(math.ceil(num_pts_est/1e6)*1e6):,} points.')
+    # Rough point-count hint: at coarse EPT resolution, tile voxels ~ tile_area / pc^2.
+    tile_area_m2 = AOI_EPSG3857.area
+    if pointcloud_resolution > 0:
+        pts_cap_est = int(tile_area_m2 / max(pointcloud_resolution, 1e-6) ** 2)
+        print(
+            f'{zoom}/{x}/{y}: EPT resolution={pointcloud_resolution:.3f} m, '
+            f'DSM cell={dsm_resolution_m:.3f} m; naive voxel cap ~{pts_cap_est:,} pts '
+            f'(full-dataset AOI estimate was ~{int(math.ceil(num_pts_est/1e6)*1e6):,}).')
+    else:
+        print(
+            f'{zoom}/{x}/{y}: EPT resolution=0 (finest octree), '
+            f'DSM cell={dsm_resolution_m:.3f} m; full-dataset AOI estimate '
+            f'~{int(math.ceil(num_pts_est/1e6)*1e6):,} points.')
 
     """
     **Note**: Lidar point clouds can get *very* large, *very* fast, and the
@@ -847,11 +894,10 @@ def get_3dep_data(zoom, x, y, grid_method):
     # (Default is EPSG:3857 - Web Mercator Projection)
     # Change dem_outName to descriptive name; dem_outExt can be any extension supported by gdal.
 
-    dsm_resolution = 0.5  # TODO: Vary with pointcloud resolution?
     dsm_filename = f"dsms/{grid_method}/dsm_{zoom}_{x}_{y}.tif"
     dsm_pipeline = make_DEM_pipeline(
         AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution,
-        dsm_resolution, filterNoise=True, reclassify=reclassify, savePointCloud=False,
+        dsm_resolution_m, filterNoise=True, reclassify=reclassify, savePointCloud=False,
         outCRS=3857, pc_outName=pc_filename[:-4], pc_outType='laz',
         demType='dsm', gridMethod=grid_method,
         dem_outName=dsm_filename[:-4], dem_outExt='tif', driver="GTiff")
@@ -918,7 +964,7 @@ def get_3dep_data(zoom, x, y, grid_method):
 
     # dsm = downsample_dem(dsm)
 
-    return dsm
+    return dsm, dsm_resolution_m
 
 
 """
@@ -974,13 +1020,21 @@ To cite this notebook:  Speed, C., Beckley, M., Crosby, C., & Nandigam, V. (2022
 """
 
 
-def process_dsm(dsm):
-    # Handle NaN or masked values in DSM
+def process_dsm(dsm, dsm_resolution_meters):
+    """
+    High-pass emphasis (DSM minus Gaussian low-pass) for subtle relief in iD.
+
+    `sigma` is in pixels (scipy.ndimage.gaussian_filter). When DSM cells are
+    large (zoomed out), a fixed pixel sigma removes only very short wavelengths
+    in ground meters, so the residual looks flat (issue #36). Scale sigma with
+    ground sample distance so the low-pass cutoff moves to a longer wavelength
+    at overview zooms.
+    """
     dsm_filled = np.nan_to_num(dsm, nan=np.nanmean(dsm))
-    # Apply a Gaussian filter to smooth the DSM
-    sigma = 5  # Adjust sigma to control the degree of smoothing
-    smoothed_dsm = gaussian_filter(dsm_filled, sigma=sigma)
-    # Subtract the smoothed DSM from the original DSM to apply a high-pass filter
+    ref_gsd_m = 0.35
+    sigma_px = 5.0 * (float(dsm_resolution_meters) / ref_gsd_m) ** 0.5
+    sigma_px = float(np.clip(sigma_px, 4.0, 26.0))
+    smoothed_dsm = gaussian_filter(dsm_filled, sigma=sigma_px)
     high_pass_dsm = dsm_filled - smoothed_dsm
     return high_pass_dsm
 
@@ -1018,8 +1072,11 @@ app = Flask(__name__)
 
 @app.route('/tiles/<string:grid_method>/<int:zoom>/<int:x>/<int:y>.png')
 def serve_tile(grid_method, zoom, x, y):
-    if zoom != 18:
-        return "Zoom level too low", 400
+    if zoom < MIN_TILE_ZOOM or zoom > MAX_TILE_ZOOM:
+        return (
+            f"Zoom level not supported (use {MIN_TILE_ZOOM}–{MAX_TILE_ZOOM})",
+            400,
+        )
 
     tile_filename = get_tile_filename(grid_method, zoom, x, y)
 
@@ -1027,14 +1084,17 @@ def serve_tile(grid_method, zoom, x, y):
         return send_file(tile_filename, mimetype='image/png')
 
     # Process tile directly
-    dsm = get_3dep_data(zoom, x, y, grid_method)
+    result = get_3dep_data(zoom, x, y, grid_method)
 
     # Check if we got any data
+    if result is None:
+        return "No data available for this tile", 404
+    dsm, dsm_resolution_m = result
     if dsm is None or dsm.size == 0:
         return "No data available for this tile", 404
 
     print(f"{zoom}/{x}/{y}: Processing image")
-    high_pass_dsm = process_dsm(dsm)
+    high_pass_dsm = process_dsm(dsm, dsm_resolution_m)
     save_tile_png(high_pass_dsm, zoom, x, y, grid_method)
 
     return send_file(tile_filename, mimetype='image/png')
