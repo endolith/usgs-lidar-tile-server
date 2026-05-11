@@ -67,9 +67,23 @@ For ease-of-use, it is suggested to launch and execute these notebooks on <a hre
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/OpenTopography/OT_3DEP_Workflows/blob/main/notebooks/01_3DEP_Generate_DEM_User_AOI.ipynb)
 """
 
+import os
+
+# Matplotlib loads fontconfig; without a writable XDG cache (e.g. missing or
+# read-only $HOME), fontconfig logs "No writable cache directories". See
+# https://github.com/endolith/usgs-lidar-tile-server/issues/40
+_server_dir = os.path.dirname(os.path.abspath(__file__))
+_server_cache = os.path.join(_server_dir, ".cache")
+if not os.environ.get("XDG_CACHE_HOME"):
+    os.makedirs(_server_cache, exist_ok=True)
+    os.environ["XDG_CACHE_HOME"] = _server_cache
+if not os.environ.get("MPLCONFIGDIR"):
+    _mpl_config = os.path.join(os.environ["XDG_CACHE_HOME"], "matplotlib")
+    os.makedirs(_mpl_config, exist_ok=True)
+    os.environ["MPLCONFIGDIR"] = _mpl_config
+
 import json
 import math
-import os
 import pickle
 
 import geopandas as gpd
