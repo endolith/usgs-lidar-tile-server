@@ -593,6 +593,117 @@ def create_bounding_box(sw_lat, sw_lon, ne_lat, ne_lon):
     return box(sw_lon, sw_lat, ne_lon, ne_lat)
 
 
+# Slippy-map tile size used for PNG output and for choosing DSM / EPT sampling.
+TILE_PNG_PX = 512
+# Full slippy-map zoom range served by this app.
+MIN_MAP_ZOOM = 0
+MAX_TILE_ZOOM = 18
+# z <= NAV_TILE_MAX_ZOOM: transparent survey-footprint tiles only (no LiDAR).
+# The map client supplies geography; only 3DEP coverage is drawn here.
+NAV_TILE_MAX_ZOOM = 7
+# First zoom where we query 3DEP EPT (coarse octree + DSM pyramid still apply).
+LIDAR_TILE_MIN_ZOOM = 8
+# At and above this zoom, tiles are high-pass only (OSM cliff/building emphasis).
+# Between LIDAR_TILE_MIN_ZOOM and this level, we crossfade toward smoothed DSM.
+LIDAR_BLEND_FULL_HP_ZOOM = 14
+
+_SURVEYS_FOOTPRINTS_GDF_3857 = None
+
+
+def surveys_footprints_gdf_3857():
+    """3DEP public EPT footprints (resources.geojson) in Web Mercator."""
+    global _SURVEYS_FOOTPRINTS_GDF_3857
+    if _SURVEYS_FOOTPRINTS_GDF_3857 is not None:
+        return _SURVEYS_FOOTPRINTS_GDF_3857
+    _SURVEYS_FOOTPRINTS_GDF_3857 = gpd.GeoDataFrame(
+        geometry=geometries_EPSG3857.values,
+        crs="EPSG:3857",
+    )
+    return _SURVEYS_FOOTPRINTS_GDF_3857
+
+
+def _surveys_intersecting_tile_3857(tile_poly):
+    gdf = surveys_footprints_gdf_3857()
+    cand = list(gdf.sindex.intersection(tile_poly.bounds))
+    if not cand:
+        return gdf.iloc[[]].copy()
+    sub = gdf.iloc[cand]
+    return sub[sub.intersects(tile_poly)].copy()
+
+
+def render_navigation_tile_png(zoom, x, y, grid_method, tile_size=TILE_PNG_PX):
+    """
+    Low-zoom tiles (no LiDAR): 3DEP EPT survey footprint polygons only.
+
+    Transparent PNG so the client basemap shows through; no legends or text.
+    """
+    bbox_m = mercantile.xy_bounds(x, y, zoom)
+    tile_poly = box(bbox_m.left, bbox_m.bottom, bbox_m.right, bbox_m.top)
+
+    fig = Figure(figsize=(tile_size / 100, tile_size / 100), dpi=100)
+    fig.patch.set_alpha(0.0)
+    canvas = FigureCanvasAgg(fig)
+    ax = fig.add_subplot(111)
+    ax.set_facecolor((0, 0, 0, 0))
+    ax.patch.set_alpha(0.0)
+    ax.set_xlim(bbox_m.left, bbox_m.right)
+    ax.set_ylim(bbox_m.bottom, bbox_m.top)
+    ax.set_aspect("equal")
+
+    surveys = _surveys_intersecting_tile_3857(tile_poly)
+    if len(surveys) > 0:
+        surveys = surveys.assign(_area=surveys.geometry.area).sort_values(
+            "_area", ascending=True
+        )
+        surveys.plot(
+            ax=ax,
+            facecolor=(0.35, 0.65, 0.42, 0.22),
+            edgecolor=(0.15, 0.45, 0.22, 0.75),
+            linewidth=0.65,
+            legend=False,
+        )
+
+    ax.axis("off")
+    fig.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
+
+    tile_filename = get_tile_filename(grid_method, zoom, x, y)
+    canvas.print_figure(
+        tile_filename,
+        dpi=100,
+        pad_inches=0,
+        bbox_inches="tight",
+        transparent=True,
+    )
+    print(f"{zoom}/{x}/{y}: Navigation tile saved as {tile_filename}")
+    return tile_filename
+
+
+def tile_max_side_meters_3857(x, y, zoom):
+    """Longer Web Mercator edge of the tile, in meters (EPT / DSM use EPSG:3857)."""
+    b = mercantile.xy_bounds(x, y, zoom)
+    return max(b.right - b.left, b.top - b.bottom)
+
+
+def dsm_and_ept_resolution_m(x, y, zoom, tile_px=TILE_PNG_PX):
+    """
+    Ground sampling distance for the DSM grid and matching EPT octree spacing.
+
+    PDAL readers.ept `resolution` is a minimum voxel edge length in CRS units
+    (meters for 3857): larger values walk shallower in the octree and return
+    fewer points (issue #8). writers.gdal `resolution` sets DSM cell size; we
+    align it to ~one cell per output pixel so overview tiles are not gigapixel
+    rasters of full-density LiDAR.
+    """
+    span_m = tile_max_side_meters_3857(x, y, zoom)
+    dsm_m = span_m / float(tile_px)
+    # At the most detailed zoom, match prior behavior: finest octree (`0` = full).
+    if zoom >= MAX_TILE_ZOOM:
+        pc_m = 0.0
+    else:
+        pc_m = max(dsm_m * 0.65, 0.12)
+    return dsm_m, pc_m
+
+
 def tile_to_aoi(zoom, x, y):
     """
     Example usage:
@@ -614,6 +725,12 @@ def tile_to_aoi(zoom, x, y):
 
 def get_3dep_data(zoom, x, y, grid_method):
     reclassify = False
+
+    if zoom < LIDAR_TILE_MIN_ZOOM:
+        return None
+
+    dsm_resolution_m, pointcloud_resolution = dsm_and_ept_resolution_m(
+        x, y, zoom)
 
     AOI_EPSG3857 = tile_to_aoi(zoom, x, y)
 
@@ -674,9 +791,19 @@ def get_3dep_data(zoom, x, y, grid_method):
 
     # sum the estimates of the number of points from each 3DEP dataset within the AOI
     num_pts_est = sum(number_pts_est)
-    pointcloud_resolution = 0.0  # This should get all points?
-    print(f'{zoom}/{x}/{y}: Using full resolution with approximately '
-          f'{int(math.ceil(num_pts_est/1e6)*1e6):,} points.')
+    # Rough point-count hint: at coarse EPT resolution, tile voxels ~ tile_area / pc^2.
+    tile_area_m2 = AOI_EPSG3857.area
+    if pointcloud_resolution > 0:
+        pts_cap_est = int(tile_area_m2 / max(pointcloud_resolution, 1e-6) ** 2)
+        print(
+            f'{zoom}/{x}/{y}: EPT resolution={pointcloud_resolution:.3f} m, '
+            f'DSM cell={dsm_resolution_m:.3f} m; naive voxel cap ~{pts_cap_est:,} pts '
+            f'(full-dataset AOI estimate was ~{int(math.ceil(num_pts_est/1e6)*1e6):,}).')
+    else:
+        print(
+            f'{zoom}/{x}/{y}: EPT resolution=0 (finest octree), '
+            f'DSM cell={dsm_resolution_m:.3f} m; full-dataset AOI estimate '
+            f'~{int(math.ceil(num_pts_est/1e6)*1e6):,} points.')
 
     """
     **Note**: Lidar point clouds can get *very* large, *very* fast, and the
@@ -847,11 +974,10 @@ def get_3dep_data(zoom, x, y, grid_method):
     # (Default is EPSG:3857 - Web Mercator Projection)
     # Change dem_outName to descriptive name; dem_outExt can be any extension supported by gdal.
 
-    dsm_resolution = 0.5  # TODO: Vary with pointcloud resolution?
     dsm_filename = f"dsms/{grid_method}/dsm_{zoom}_{x}_{y}.tif"
     dsm_pipeline = make_DEM_pipeline(
         AOI_EPSG3857_wkt, usgs_3dep_datasets, pointcloud_resolution,
-        dsm_resolution, filterNoise=True, reclassify=reclassify, savePointCloud=False,
+        dsm_resolution_m, filterNoise=True, reclassify=reclassify, savePointCloud=False,
         outCRS=3857, pc_outName=pc_filename[:-4], pc_outType='laz',
         demType='dsm', gridMethod=grid_method,
         dem_outName=dsm_filename[:-4], dem_outExt='tif', driver="GTiff")
@@ -918,7 +1044,7 @@ def get_3dep_data(zoom, x, y, grid_method):
 
     # dsm = downsample_dem(dsm)
 
-    return dsm
+    return dsm, dsm_resolution_m
 
 
 """
@@ -974,15 +1100,45 @@ To cite this notebook:  Speed, C., Beckley, M., Crosby, C., & Nandigam, V. (2022
 """
 
 
-def process_dsm(dsm):
-    # Handle NaN or masked values in DSM
+def process_dsm(dsm, dsm_resolution_meters, zoom):
+    """
+    High-pass emphasis (DSM minus Gaussian low-pass) for subtle relief in iD.
+
+    `sigma` is in pixels (scipy.ndimage.gaussian_filter). When DSM cells are
+    large (zoomed out), a fixed pixel sigma removes only very short wavelengths
+    in ground meters, so the residual looks flat (issue #36). Scale sigma with
+    ground sample distance so the low-pass cutoff moves to a longer wavelength
+    at overview zooms.
+
+    Between LIDAR_TILE_MIN_ZOOM and LIDAR_BLEND_FULL_HP_ZOOM we crossfade from
+    normalized smoothed DSM (broad relief for bearings) toward pure high-pass
+    (edge mapping) as zoom increases.
+    """
     dsm_filled = np.nan_to_num(dsm, nan=np.nanmean(dsm))
-    # Apply a Gaussian filter to smooth the DSM
-    sigma = 5  # Adjust sigma to control the degree of smoothing
-    smoothed_dsm = gaussian_filter(dsm_filled, sigma=sigma)
-    # Subtract the smoothed DSM from the original DSM to apply a high-pass filter
+    ref_gsd_m = 0.35
+    sigma_px = 5.0 * (float(dsm_resolution_meters) / ref_gsd_m) ** 0.5
+    sigma_px = float(np.clip(sigma_px, 4.0, 26.0))
+    smoothed_dsm = gaussian_filter(dsm_filled, sigma=sigma_px)
     high_pass_dsm = dsm_filled - smoothed_dsm
-    return high_pass_dsm
+
+    if zoom >= LIDAR_BLEND_FULL_HP_ZOOM:
+        return high_pass_dsm
+
+    span = LIDAR_BLEND_FULL_HP_ZOOM - LIDAR_TILE_MIN_ZOOM
+    if span <= 0:
+        return high_pass_dsm
+    w_hp = (float(zoom) - LIDAR_TILE_MIN_ZOOM) / float(span)
+    w_hp = float(np.clip(w_hp, 0.0, 1.0))
+
+    def _norm01(a):
+        lo, hi = np.percentile(a, (2.0, 98.0))
+        if hi <= lo:
+            return np.zeros_like(a, dtype=np.float64)
+        return np.clip((a.astype(np.float64) - lo) / (hi - lo), 0.0, 1.0)
+
+    hi_n = _norm01(high_pass_dsm)
+    sm_n = _norm01(smoothed_dsm)
+    return (1.0 - w_hp) * sm_n + w_hp * hi_n
 
 
 def get_tile_filename(grid_method, zoom, x, y):
@@ -994,15 +1150,15 @@ def get_tile_filename(grid_method, zoom, x, y):
     return f'tiles/{grid_method}/tile_{zoom}_{x}_{y}.png'
 
 
-def save_tile_png(high_pass_dsm, zoom, x, y, grid_method, tile_size=512):
-	# TODO: These are not always square for some reason, but iD seems to
-	# stretch them to square on its own
-    print(f"{zoom}/{x}/{y}: DSM data shape: {high_pass_dsm.shape}")
+def save_tile_png(raster, zoom, x, y, grid_method, tile_size=512):
+    # TODO: These are not always square for some reason, but iD seems to
+    # stretch them to square on its own
+    print(f"{zoom}/{x}/{y}: DSM data shape: {raster.shape}")
     fig = Figure(figsize=(tile_size/100, tile_size/100), dpi=100)
     canvas = FigureCanvasAgg(fig)
     ax = fig.add_subplot(111)
 
-    ax.imshow(high_pass_dsm, cmap='gray', interpolation='nearest')
+    ax.imshow(raster, cmap='gray', interpolation='nearest')
     ax.axis('off')
     fig.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
 
@@ -1018,24 +1174,32 @@ app = Flask(__name__)
 
 @app.route('/tiles/<string:grid_method>/<int:zoom>/<int:x>/<int:y>.png')
 def serve_tile(grid_method, zoom, x, y):
-    if zoom != 18:
-        return "Zoom level too low", 400
+    if zoom < MIN_MAP_ZOOM or zoom > MAX_TILE_ZOOM:
+        return (
+            f"Zoom level not supported (use {MIN_MAP_ZOOM}–{MAX_TILE_ZOOM})",
+            400,
+        )
 
     tile_filename = get_tile_filename(grid_method, zoom, x, y)
 
     if os.path.exists(tile_filename):
         return send_file(tile_filename, mimetype='image/png')
 
-    # Process tile directly
-    dsm = get_3dep_data(zoom, x, y, grid_method)
+    if zoom <= NAV_TILE_MAX_ZOOM:
+        render_navigation_tile_png(zoom, x, y, grid_method)
+        return send_file(tile_filename, mimetype='image/png')
 
-    # Check if we got any data
+    result = get_3dep_data(zoom, x, y, grid_method)
+
+    if result is None:
+        return "No data available for this tile", 404
+    dsm, dsm_resolution_m = result
     if dsm is None or dsm.size == 0:
         return "No data available for this tile", 404
 
     print(f"{zoom}/{x}/{y}: Processing image")
-    high_pass_dsm = process_dsm(dsm)
-    save_tile_png(high_pass_dsm, zoom, x, y, grid_method)
+    display_raster = process_dsm(dsm, dsm_resolution_m, zoom)
+    save_tile_png(display_raster, zoom, x, y, grid_method)
 
     return send_file(tile_filename, mimetype='image/png')
 
